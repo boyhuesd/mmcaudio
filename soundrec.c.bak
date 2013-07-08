@@ -61,6 +61,52 @@ char* codeToRam(const char* ctxt){
 }
 
 
+/*********** BEIGN READ/WRITE DELAY ****
+void
+readDelay(unsigned char delayTime)
+{
+        switch (delayTime)
+        {
+        case 1:
+                {
+                        // 8k sampling rate
+                        Delay_us(100);
+                }
+        case 2:
+                {
+                        // 16k sampling rate
+                        Delay_us(50);
+                }
+        default:
+                {
+                        // Maximum sampling rate
+                }
+        }
+}
+
+void
+writeDelay(unsigned char delayTime)
+{
+        switch (delayTime)
+        {
+        case 1:
+                {
+                        // 8k sampling rate
+                        Delay_us(100);
+                }
+        case 2:
+                {
+                        // 16k sampling rate
+                        Delay_us(50);
+                }
+        default:
+                {
+                        // Maxium sampling rate
+                        Delay_us(14);
+                }
+        }
+}
+*********** END READ/WRITE DELAY ******/
 
 /*********** BEGIN ADC *****************/
 unsigned char

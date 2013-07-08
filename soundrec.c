@@ -1,3 +1,10 @@
+/******************************************************************************
+Git command
+git add *
+git add filename.ext
+git commit -m "User comment"
+git push -u origin master
+******************************************************************************/
 #include <stdint.h>
 
 sfr sbit Mmc_Chip_Select at LATC2_bit;

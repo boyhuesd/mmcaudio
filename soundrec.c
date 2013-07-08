@@ -1,11 +1,16 @@
+#include <stdint.h>
+
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
+sfr sbit CS at LATC2_bit;
 
 #define TP0 LATC0_bit
 #define UWR(x) UART_Write_Text(x);\
 				UART_Write(13);\
 				UART_Write(10);
 
+#define spiWrite(x) SPI1_Write(x)
+#define spiRead() SPI1_Read(0xff)
 
 sbit LCD_RS at LATD0_bit;
 sbit LCD_EN at LATD1_bit;
@@ -51,6 +56,7 @@ volatile unsigned int t = 0;
 volatile unsigned char x;
 volatile unsigned int numberOfSectors = 0;
 volatile unsigned char error;
+volatile uint8_t spiReadData;
 
 char* codeToRam(const char* ctxt){
         static char txt[20];
@@ -80,17 +86,53 @@ void caidatMMC()
         //Lcd_Out(1,1, codeToRam(infMMCDttng));  // Detecting MMC
 		UWR("Detecting MMC");
         Delay_ms(1000);
-        SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+        SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
+		_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
         while (MMC_Init() != 0)
         {
         }
-        // thiet lap toc do f/4 de bao dam luu du lieu
-        SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+        // change spi clock rate to achive maximum speed
+        SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
+		_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
         //LCD_CMD(_LCD_CLEAR);
         //Lcd_Out(1,2, codeToRam(infMMCDttd));  // MMC Detected
 		UWR("MMC Detected!");
         Delay_ms (1000);
+}
+
+
+/******************************************************************************
+MMC functions: 
+- command(command, fourbyte_arg, CRCbits)
+- writeSingleBlock() : write a single block
+******************************************************************************/
+void
+command(char command, uint32_t fourbyte_arg, char CRCbitss)
+{
+	spiWrite(0xff);
+	spiWrite(0b01000000 | command);
+	spiWrite((uint8_t) (fourbyte_arg >> 24));
+	spiWrite((uint8_t) (fourbyte_arg >> 16));
+	spiWrite((uint8_t) (fourbyte_arg >> 8));
+	spiWrite((uint8_t) (fourbyte_art));
+	spiWrite(CRCbits);
+	spiReadData = spiRead();
+}
+
+void
+writeSingleBlock(void)
+{
+	spiWrite(0xff);
+	// check if the card is ready to receive command
+	spiReadData = spiRead();
+	while (spiReadData != 0xff)
+	{
+		spiReadData = spiRead();
+		UWR("Card busy!");
+	}
+	// Send CMD 24 to write single block
+	
 }
 
 //// ham ghi du lieu
@@ -139,71 +181,6 @@ void hamdoc()
         }
         t++;
 }
-
-/********** BEGIN SELECT SAMPLING RATE *********
-void samplingSetup(void)
-{
-        unsigned char select;
-        LCD_CMD(_LCD_CLEAR);
-        //LCD_CMD(_LCD_CURSOR_OFF);
-        LCD_OUT(1, 1, codeToRam(infSamplingSelect));
-        Delay_ms(100);
-        samplingRate = 1;
-        //LCD_OUT(2, 6, "8 KSPS");
-        select = 0;
-
-        while (1)
-        {
-                if (SLCT == 0)
-                {
-                        Delay_ms(500);
-                        select++;
-                        if (select == 4)
-                        {
-                                select = 1;
-                        }
-                }
-
-                if (select == 1)
-                {
-                        LCD_OUT(2, 6, codeToRam(inf8Ksps));
-                        samplingRate = 1;
-                }
-                if (select == 2)
-                {
-                        LCD_OUT(2, 6, codeToRam(inf16Ksps));
-                        samplingRate = 2;
-                }
-                if (select == 3)
-                {
-                        LCD_OUT(2, 6, codeToRam(infMax));
-                        samplingRate = 3;
-                }
-
-                if (OK == 0)
-                {
-                        // Save new sampling rate
-                        LCD_CMD(_LCD_CLEAR);
-                        //LCD_CMD(_LCD_CURSOR_OFF);
-                        LCD_OUT(1, 1, codeToRam(infSamplingSelected));
-                        if (select == 1)
-                        {
-                                LCD_OUT(2, 4, codeToRam(inf8Ksps));
-                        }
-                        if (select == 2)
-                        {
-                                LCD_OUT(2, 4, codeToRam(inf16Ksps));
-                        }
-                        if (select == 3)
-                        {
-                                LCD_OUT(2, 4, codeToRam(infMax));
-                        }
-                        Delay_ms(1000);
-                        break;
-                }
-        }
-}
-********** END SELECT SAMPLING RATE **********/
 
 unsigned int hamcaidat()
 {

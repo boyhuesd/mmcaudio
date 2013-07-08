@@ -8,7 +8,8 @@ Git command
 git add *
 git add filename.ext
 git commit -m "User comment"
-git push -u origin master
+git push -u origin master // push from local to server
+git pull // pull from server to local
 ******************************************************************************/
 #include <stdint.h>
 

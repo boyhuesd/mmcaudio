@@ -15,7 +15,6 @@ git pull // pull from server to local
 
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
-sfr sbit CS at LATC2_bit;
 
 #define TP0 LATC0_bit
 #define UWR(x) UART_Write_Text(x);\
@@ -70,6 +69,8 @@ volatile unsigned char x;
 volatile unsigned int numberOfSectors = 0;
 volatile unsigned char error;
 volatile uint8_t spiReadData;
+volatile uint32_t arg;
+volatile uint8_t count;
 
 char* codeToRam(const char* ctxt){
         static char txt[20];
@@ -121,14 +122,14 @@ MMC functions:
 - writeSingleBlock() : write a single block
 ******************************************************************************/
 void
-command(char command, uint32_t fourbyte_arg, char CRCbitss)
+command(char command, uint32_t fourbyte_arg, char CRCbits)
 {
 	spiWrite(0xff);
 	spiWrite(0b01000000 | command);
 	spiWrite((uint8_t) (fourbyte_arg >> 24));
 	spiWrite((uint8_t) (fourbyte_arg >> 16));
 	spiWrite((uint8_t) (fourbyte_arg >> 8));
-	spiWrite((uint8_t) (fourbyte_art));
+	spiWrite((uint8_t) (fourbyte_arg));
 	spiWrite(CRCbits);
 	spiReadData = spiRead();
 }
@@ -136,6 +137,7 @@ command(char command, uint32_t fourbyte_arg, char CRCbitss)
 void
 writeSingleBlock(void)
 {
+	uint16_t g = 0;
 	spiWrite(0xff);
 	// check if the card is ready to receive command
 	spiReadData = spiRead();
@@ -145,7 +147,34 @@ writeSingleBlock(void)
 		UWR("Card busy!");
 	}
 	// Send CMD 24 to write single block
-	
+	command(24, arg, 0x95);
+	// verify R1
+	while (spiReadData != 0)
+	{
+		spiReadData = spiRead();
+	}
+	UWR("Command accepted!");
+	spiWrite(0xff);
+	spiWrite(0xff);
+	spiWrite(0b11111110); // Data token for CMD 24
+	for (g = 0; g < 512; g++)
+	{
+		spiWrite(0x99);
+	}
+	spiWrite(0xff);
+	spiWrite(0xff);
+	spiReadData = spiRead();
+	// check if the block is accepted
+	if ((spiReadData & 0b00011111) == 0x05)
+	{
+		UWR("Data accepted!");
+	}
+	spiReadData = spiRead();
+	while (spiReadData != 0xff)
+	{
+		spiReadData = spiRead();
+	}
+	UWR("Card is idle");
 }
 
 //// ham ghi du lieu
@@ -361,7 +390,7 @@ void main()
 						t = 0;
 						UWR("Writing");
                         PORTB = 0x00;
-                        while (SLCT)
+/*                         while (SLCT)
                         {
                                 hamghi();
                         }
@@ -382,7 +411,8 @@ void main()
                         // LCD_OUT(2, 1, codeToRam(infPressAnykey));
                         while (SLCT && OK)
                         {
-                        }
+                        } */
+						writeSingleBlock();
 
                 }
 

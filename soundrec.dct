@@ -262,6 +262,7 @@ an8
 an8_bit
 an9
 an9_bit
+arg
 asin
 atan
 atan2
@@ -430,10 +431,12 @@ cmip
 cmip_bit
 codetoram
 comfrem
+command
 compare_double
 cos
 cose3
 cosh
+count
 cr
 cren
 cren_bit
@@ -1735,6 +1738,7 @@ spi1_init
 spi1_init_advanced
 spi1_read
 spi1_write
+spireaddata
 sprintf
 sprinti
 sprintl
@@ -2149,6 +2153,7 @@ wren
 wren_bit
 wrerr
 wrerr_bit
+writesingleblock
 wue
 wue_bit
 x

@@ -1,7 +1,50 @@
-#line 1 "E:/Dropbox/Public/dtvt/DoAnSpring2013/SOUND_RECODER/soundrec.c"
+#line 1 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 1 "e:/mikroelektronika/mikroc pro for pic/include/stdint.h"
+
+
+
+
+typedef signed char int8_t;
+typedef signed int int16_t;
+typedef signed long int int32_t;
+
+
+typedef unsigned char uint8_t;
+typedef unsigned int uint16_t;
+typedef unsigned long int uint32_t;
+
+
+typedef signed char int_least8_t;
+typedef signed int int_least16_t;
+typedef signed long int int_least32_t;
+
+
+typedef unsigned char uint_least8_t;
+typedef unsigned int uint_least16_t;
+typedef unsigned long int uint_least32_t;
+
+
+
+typedef signed char int_fast8_t;
+typedef signed int int_fast16_t;
+typedef signed long int int_fast32_t;
+
+
+typedef unsigned char uint_fast8_t;
+typedef unsigned int uint_fast16_t;
+typedef unsigned long int uint_fast32_t;
+
+
+typedef signed int intptr_t;
+typedef unsigned int uintptr_t;
+
+
+typedef signed long int intmax_t;
+typedef unsigned long int uintmax_t;
+#line 16 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
-#line 10 "E:/Dropbox/Public/dtvt/DoAnSpring2013/SOUND_RECODER/soundrec.c"
+#line 27 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
 sbit LCD_RS at LATD0_bit;
 sbit LCD_EN at LATD1_bit;
 sbit LCD_D7 at LATD7_bit;
@@ -46,6 +89,9 @@ volatile unsigned int t = 0;
 volatile unsigned char x;
 volatile unsigned int numberOfSectors = 0;
 volatile unsigned char error;
+volatile uint8_t spiReadData;
+volatile uint32_t arg;
+volatile uint8_t count;
 
 char* codeToRam(const char* ctxt){
  static char txt[20];
@@ -54,7 +100,10 @@ char* codeToRam(const char* ctxt){
 
  return txt;
 }
-#line 112 "E:/Dropbox/Public/dtvt/DoAnSpring2013/SOUND_RECODER/soundrec.c"
+
+
+
+
 unsigned char
 adcRead(void)
 {
@@ -72,17 +121,74 @@ void caidatMMC()
 
   UART_Write_Text("Detecting MMC"); UART_Write(13); UART_Write(10); ;
  Delay_ms(1000);
+#line 104 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
  while (MMC_Init() != 0)
  {
  }
-
+#line 111 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
 
   UART_Write_Text("MMC Detected!"); UART_Write(13); UART_Write(10); ;
  Delay_ms (1000);
+}
+#line 124 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+void
+command(char command, uint32_t fourbyte_arg, char CRCbits)
+{
+  SPI1_Write(0xff) ;
+  SPI1_Write(0b01000000 | command) ;
+  SPI1_Write((uint8_t) (fourbyte_arg >> 24)) ;
+  SPI1_Write((uint8_t) (fourbyte_arg >> 16)) ;
+  SPI1_Write((uint8_t) (fourbyte_arg >> 8)) ;
+  SPI1_Write((uint8_t) (fourbyte_arg)) ;
+  SPI1_Write(CRCbits) ;
+ spiReadData =  SPI1_Read(0xff) ;
+}
+
+void
+writeSingleBlock(void)
+{
+ uint16_t g = 0;
+  SPI1_Write(0xff) ;
+
+ spiReadData =  SPI1_Read(0xff) ;
+ while (spiReadData != 0xff)
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+  UART_Write_Text("Card busy!"); UART_Write(13); UART_Write(10); ;
+ }
+
+ command(24, arg, 0x95);
+
+ while (spiReadData != 0)
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+ }
+  UART_Write_Text("Command accepted!"); UART_Write(13); UART_Write(10); ;
+  SPI1_Write(0xff) ;
+  SPI1_Write(0xff) ;
+  SPI1_Write(0b11111110) ;
+ for (g = 0; g < 512; g++)
+ {
+  SPI1_Write(0x99) ;
+ }
+  SPI1_Write(0xff) ;
+  SPI1_Write(0xff) ;
+ spiReadData =  SPI1_Read(0xff) ;
+
+ if ((spiReadData & 0b00011111) == 0x05)
+ {
+  UART_Write_Text("Data accepted!"); UART_Write(13); UART_Write(10); ;
+ }
+ spiReadData =  SPI1_Read(0xff) ;
+ while (spiReadData != 0xff)
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+ }
+  UART_Write_Text("Card is idle"); UART_Write(13); UART_Write(10); ;
 }
 
 
@@ -131,7 +237,7 @@ void hamdoc()
  }
  t++;
 }
-#line 254 "E:/Dropbox/Public/dtvt/DoAnSpring2013/SOUND_RECODER/soundrec.c"
+
 unsigned int hamcaidat()
 {
  Lcd_Cmd(_LCD_CLEAR);
@@ -227,7 +333,7 @@ void main()
 
  lastMode = mode;
  }
-#line 412 "E:/Dropbox/Public/dtvt/DoAnSpring2013/SOUND_RECODER/soundrec.c"
+#line 385 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
  if (mode == 1)
  {
 
@@ -236,28 +342,8 @@ void main()
  t = 0;
   UART_Write_Text("Writing"); UART_Write(13); UART_Write(10); ;
  PORTB = 0x00;
- while ( RD2_bit )
- {
- hamghi();
- }
-
- Delay_ms(25);
- EEPROM_Write(0x81, t);
- Delay_ms(25);
- EEPROM_Write(0x82, t >> 8);
- Delay_ms(25);
- IntToStr(t, strNumOfSec);
-  UART_Write_Text(strNumOfSec); UART_Write(13); UART_Write(10); ;
-
-
- Delay_ms(500);
-  UART_Write_Text("STOPPED"); UART_Write(13); UART_Write(10); ;
-  UART_Write_Text("Press any key!"); UART_Write(13); UART_Write(10); ;
-
-
- while ( RD2_bit  &&  RD3_bit )
- {
- }
+#line 415 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+ writeSingleBlock();
 
  }
 

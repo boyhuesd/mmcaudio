@@ -10,6 +10,7 @@ git add filename.ext
 git commit -m "User comment"
 git push -u origin master // push from local to server
 git pull // pull from server to local
+git commit -a -m "..." // commit all
 ******************************************************************************/
 #include <stdint.h>
 
@@ -232,6 +233,7 @@ writeSingleBlock(void)
 			UWR("Data accepted!");
 			break;
 		}
+		spiReadData = spiRead();
 		count++;
 	}
 	if (count >= 10)
@@ -290,6 +292,10 @@ readSingleBlock(void)
 void
 writeMultipleBlock(void)
 {
+	volatile uint16_t g;
+	volatile uint8_t temp = 0;
+	volatile uint8_t text[7];
+	
 	spiWrite(0xff);
 	spiReadData = spiRead();
 	while (spiReadData != 0xff);
@@ -301,20 +307,78 @@ writeMultipleBlock(void)
 	command(25, arg, 0x95);
 	// verify R1
 	count = 0;
-	while(spiReadData != 0)
+	while(count < 8)
 	{
+		if (spiReadData == 0)
+		{
+			break;
+		}
 		spiReadData = spiRead();
+		count++;
+	}
+	if (count >= 8)
+	{
+		UWR("Command rejected!");
 	}
 	UWR("Command accepted!");
 	spiWrite(0xff);
+	spiWrite(0xff);
 	spiWrite(0xff); // Dummy clock
-	while (SCLT) // repeat until Select button pressed
+	while (temp < 5) // repeat until Select button pressed
 	{
 		spiWrite(0b11111100); // Data token for CMD 25
+		/* for (g = 0; g < 512; g++)
+		{
+			spiWrite(0x99);
+			IntToStr(g, text);
+			UWR(text);
+			Delay_ms(2);
+		} // write a block of 512 bytes data
+		spiWrite(0xff);
+		spiWrite(0xff); // 2 bytes CRC
+		// check if the data is accepted
 		count = 0;
-		
+		while (count < 8)
+		{
+			spiReadData = spiRead();
+			if ((spiReadData & 0b00011111) == 0x05)
+			{
+				UWR("Data accepted!");
+				break;
+			}
+			count++;
+		}
+		if (count >= 8)
+		{
+			UWR("Data rejected!");
+			while (1); // Trap the CPU
+		} */
+		g = 0;
+		while ((spiReadData & 0b00011111) != 0x05)
+		{
+			spiReadData = spiRead();
+			g++;
+		}
+		IntToStr(g, text);
+		UWR(text);
+		while (1); // Trap the CPU
+		spiReadData = spiRead(); // check if the card is busy
+		while (spiReadData != 0xff)
+		{
+			spiReadData = spiRead();
+		}
+		temp++;
 	}
-	while (1); // Trap the CPU
+	// if the SLCT button is pressed
+	// write the stop transfer token
+	spiWrite(0b11111101); 
+	spiWrite(0xff);
+	spiReadData = spiRead();
+	while (spiReadData != 0xff) // check if the card is busy
+	{
+		spiReadData = spiRead();
+	}
+	UWR("DONE Writing!")
 }
 
 //// ham ghi du lieu

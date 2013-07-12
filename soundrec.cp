@@ -200,7 +200,8 @@ mmcInit(void)
  while (1);
  }
   UART_Write_Text("MMC Detected!"); UART_Write(13); UART_Write(10); ;
-#line 192 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 191 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+ SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV16, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
  Delay_ms(20);
 
 }
@@ -244,6 +245,7 @@ writeSingleBlock(void)
   UART_Write_Text("Data accepted!"); UART_Write(13); UART_Write(10); ;
  break;
  }
+ spiReadData =  SPI1_Read(0xff) ;
  count++;
  }
  if (count >= 10)
@@ -302,6 +304,10 @@ readSingleBlock(void)
 void
 writeMultipleBlock(void)
 {
+ volatile uint16_t g;
+ volatile uint8_t temp = 0;
+ volatile uint8_t text[7];
+
   SPI1_Write(0xff) ;
  spiReadData =  SPI1_Read(0xff) ;
  while (spiReadData != 0xff);
@@ -309,7 +315,57 @@ writeMultipleBlock(void)
  spiReadData =  SPI1_Read(0xff) ;
  }
   UART_Write_Text("Card ready!"); UART_Write(13); UART_Write(10); 
+
+ command(25, arg, 0x95);
+
+ count = 0;
+ while(count < 8)
+ {
+ if (spiReadData == 0)
+ {
+ break;
+ }
+ spiReadData =  SPI1_Read(0xff) ;
+ count++;
+ }
+ if (count >= 8)
+ {
+  UART_Write_Text("Command rejected!"); UART_Write(13); UART_Write(10); ;
+ }
+  UART_Write_Text("Command accepted!"); UART_Write(13); UART_Write(10); ;
+  SPI1_Write(0xff) ;
+  SPI1_Write(0xff) ;
+  SPI1_Write(0xff) ;
+ while (temp < 5)
+ {
+  SPI1_Write(0b11111100) ;
+#line 355 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+ g = 0;
+ while ((spiReadData & 0b00011111) != 0x05)
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+ g++;
+ }
+ IntToStr(g, text);
+  UART_Write_Text(text); UART_Write(13); UART_Write(10); ;
  while (1);
+ spiReadData =  SPI1_Read(0xff) ;
+ while (spiReadData != 0xff)
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+ }
+ temp++;
+ }
+
+
+  SPI1_Write(0b11111101) ;
+  SPI1_Write(0xff) ;
+ spiReadData =  SPI1_Read(0xff) ;
+ while (spiReadData != 0xff)
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+ }
+  UART_Write_Text("DONE Writing!"); UART_Write(13); UART_Write(10); 
 }
 
 

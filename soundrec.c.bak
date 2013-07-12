@@ -73,7 +73,8 @@ volatile uint8_t spiReadData;
 volatile uint32_t arg = 0;
 volatile uint8_t count;
 
-char* codeToRam(const char* ctxt){
+char* codeToRam(const char* ctxt)
+{
 	static char txt[20];
 	char i;
 	for(i =0; txt[i] = ctxt[i]; i++);
@@ -327,7 +328,7 @@ writeMultipleBlock(void)
 	while (temp < 5) // repeat until Select button pressed
 	{
 		spiWrite(0b11111100); // Data token for CMD 25
-		/* for (g = 0; g < 512; g++)
+		for (g = 0; g < 512; g++)
 		{
 			spiWrite(0x99);
 			IntToStr(g, text);
@@ -352,15 +353,7 @@ writeMultipleBlock(void)
 		{
 			UWR("Data rejected!");
 			while (1); // Trap the CPU
-		} */
-		g = 0;
-		while ((spiReadData & 0b00011111) != 0x05)
-		{
-			spiReadData = spiRead();
-			g++;
-		}
-		IntToStr(g, text);
-		UWR(text);
+		} 
 		while (1); // Trap the CPU
 		spiReadData = spiRead(); // check if the card is busy
 		while (spiReadData != 0xff)

@@ -308,7 +308,7 @@ writeMultipleBlock(void)
 	command(25, arg, 0x95);
 	// verify R1
 	count = 0;
-	while(count < 8)
+	while(count < 10)
 	{
 		if (spiReadData == 0)
 		{
@@ -317,7 +317,7 @@ writeMultipleBlock(void)
 		spiReadData = spiRead();
 		count++;
 	}
-	if (count >= 8)
+	if (count >= 10)
 	{
 		UWR("Command rejected!");
 	}
@@ -328,7 +328,7 @@ writeMultipleBlock(void)
 	while (temp < 5) // repeat until Select button pressed
 	{
 		spiWrite(0b11111100); // Data token for CMD 25
-		/* for (g = 0; g < 512; g++)
+		for (g = 0; g < 512; g++)
 		{
 			spiWrite(0x99);
 			IntToStr(g, text);
@@ -353,15 +353,7 @@ writeMultipleBlock(void)
 		{
 			UWR("Data rejected!");
 			while (1); // Trap the CPU
-		} */
-		g = 0;
-		while ((spiReadData & 0b00011111) != 0x05)
-		{
-			spiReadData = spiRead();
-			g++;
-		}
-		IntToStr(g, text);
-		UWR(text);
+		} 
 		while (1); // Trap the CPU
 		spiReadData = spiRead(); // check if the card is busy
 		while (spiReadData != 0xff)

@@ -73,7 +73,8 @@ volatile uint8_t spiReadData;
 volatile uint32_t arg = 0;
 volatile uint8_t count;
 
-char* codeToRam(const char* ctxt){
+char* codeToRam(const char* ctxt)
+{
 	static char txt[20];
 	char i;
 	for(i =0; txt[i] = ctxt[i]; i++);

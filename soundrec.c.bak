@@ -10,6 +10,7 @@ git add filename.ext
 git commit -m "User comment"
 git push -u origin master // push from local to server
 git pull // pull from server to local
+git commit -a -m "..." // commit all
 ******************************************************************************/
 #include <stdint.h>
 

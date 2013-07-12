@@ -90,7 +90,7 @@ volatile unsigned char x;
 volatile unsigned int numberOfSectors = 0;
 volatile unsigned char error;
 volatile uint8_t spiReadData;
-volatile uint32_t arg;
+volatile uint32_t arg = 0;
 volatile uint8_t count;
 
 char* codeToRam(const char* ctxt){
@@ -108,7 +108,6 @@ unsigned char
 adcRead(void)
 {
 
- Delay_us(8);
  GO_bit = 1;
  while (!GO);
 
@@ -118,23 +117,20 @@ adcRead(void)
 
 void caidatMMC()
 {
-
   UART_Write_Text("Detecting MMC"); UART_Write(13); UART_Write(10); ;
  Delay_ms(1000);
-#line 104 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 102 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
  while (MMC_Init() != 0)
  {
  }
-#line 111 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 109 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
-
-
   UART_Write_Text("MMC Detected!"); UART_Write(13); UART_Write(10); ;
  Delay_ms (1000);
 }
-#line 124 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 120 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
 void
 command(char command, uint32_t fourbyte_arg, char CRCbits)
 {
@@ -146,6 +142,67 @@ command(char command, uint32_t fourbyte_arg, char CRCbits)
   SPI1_Write((uint8_t) (fourbyte_arg)) ;
   SPI1_Write(CRCbits) ;
  spiReadData =  SPI1_Read(0xff) ;
+}
+
+void
+mmcInit(void)
+{
+ uint8_t u;
+#line 138 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+ SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+ Delay_ms(2);
+ Mmc_Chip_Select = 1;
+  UART_Write_Text("CS is HIGH!"); UART_Write(13); UART_Write(10); ;
+ for (u = 0; u < 10; u++)
+ {
+  SPI1_Write(0xff) ;
+ }
+  UART_Write_Text("Dummy clock sent!"); UART_Write(13); UART_Write(10); ;
+ Mmc_Chip_Select = 0;
+  UART_Write_Text("CS is LOW!\n"); UART_Write(13); UART_Write(10); ;
+ Delay_ms(1);
+ command(0, 0, 0x95);
+  UART_Write_Text("CMD0 sent!"); UART_Write(13); UART_Write(10); ;
+ count = 0;
+ while ((spiReadData != 1) && (count < 10))
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+ count++;
+ }
+ if (count >= 10)
+ {
+  UART_Write_Text("CARD ERROR - CMD0"); UART_Write(13); UART_Write(10); ;
+ while (1);
+ }
+ command(1, 0, 0xff);
+ count = 0;
+ while ((spiReadData != 0) && (count < 1000))
+ {
+ command(1, 0, 0xff);
+ spiReadData =  SPI1_Read(0xff) ;
+ count++;
+ }
+ if (count >= 1000)
+ {
+  UART_Write_Text("Card ERROR - CMD1"); UART_Write(13); UART_Write(10); ;
+ while (1);
+ }
+ command(16, 512, 0xff);
+ count = 0;
+ while ((spiReadData != 0) && (count < 1000))
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+ count++;
+ }
+ if (count >= 1000)
+ {
+  UART_Write_Text("Card error - CMD16"); UART_Write(13); UART_Write(10); ;
+ while (1);
+ }
+  UART_Write_Text("MMC Detected!"); UART_Write(13); UART_Write(10); ;
+#line 192 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+ Delay_ms(20);
+
 }
 
 void
@@ -173,15 +230,25 @@ writeSingleBlock(void)
   SPI1_Write(0b11111110) ;
  for (g = 0; g < 512; g++)
  {
-  SPI1_Write(0x99) ;
+  SPI1_Write(0x50) ;
  }
   SPI1_Write(0xff) ;
   SPI1_Write(0xff) ;
  spiReadData =  SPI1_Read(0xff) ;
 
+ count = 0;
+ while (count < 10)
+ {
  if ((spiReadData & 0b00011111) == 0x05)
  {
   UART_Write_Text("Data accepted!"); UART_Write(13); UART_Write(10); ;
+ break;
+ }
+ count++;
+ }
+ if (count >= 10)
+ {
+  UART_Write_Text("Data rejected!"); UART_Write(13); UART_Write(10); ;
  }
  spiReadData =  SPI1_Read(0xff) ;
  while (spiReadData != 0xff)
@@ -189,6 +256,60 @@ writeSingleBlock(void)
  spiReadData =  SPI1_Read(0xff) ;
  }
   UART_Write_Text("Card is idle"); UART_Write(13); UART_Write(10); ;
+}
+void
+readSingleBlock(void)
+{
+ volatile uint16_t numOfBytes;
+ volatile uint8_t strData[7];
+  SPI1_Write(0xff) ;
+ spiReadData =  SPI1_Read(0xff) ;
+ while (spiReadData != 0xff)
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+  UART_Write_Text("Card busy!"); UART_Write(13); UART_Write(10); ;
+ }
+
+ command(17, arg, 0x95);
+
+ while (spiReadData != 0)
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+  UART_Write_Text("Busy!"); UART_Write(13); UART_Write(10); ;
+ }
+  UART_Write_Text("CMD accepted!"); UART_Write(13); UART_Write(10); ;
+
+ while (spiReadData != 0xfe)
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+ }
+  UART_Write_Text("Token received!"); UART_Write(13); UART_Write(10); ;
+
+ for (numOfBytes = 0; numOfBytes < 512; numOfBytes++)
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+ IntToStr(spiReadData, strData);
+  UART_Write_Text(strData); UART_Write(13); UART_Write(10); ;
+  LATB  = spiReadData;
+ Delay_ms(2);
+ }
+
+ spiReadData =  SPI1_Read(0xff) ;
+ spiReadData =  SPI1_Read(0xff) ;
+  UART_Write_Text("DONE!"); UART_Write(13); UART_Write(10); ;
+}
+
+void
+writeMultipleBlock(void)
+{
+  SPI1_Write(0xff) ;
+ spiReadData =  SPI1_Read(0xff) ;
+ while (spiReadData != 0xff);
+ {
+ spiReadData =  SPI1_Read(0xff) ;
+ }
+  UART_Write_Text("Card ready!"); UART_Write(13); UART_Write(10); 
+ while (1);
 }
 
 
@@ -287,12 +408,7 @@ void main()
 
 
  UART1_Init(9600);
- caidatMMC();
-
-
-
-
-
+ mmcInit();
 
  for ( ; ; )
  {
@@ -333,18 +449,16 @@ void main()
 
  lastMode = mode;
  }
-#line 385 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+
+
+
  if (mode == 1)
  {
-
-
-
  t = 0;
   UART_Write_Text("Writing"); UART_Write(13); UART_Write(10); ;
  PORTB = 0x00;
-#line 415 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
- writeSingleBlock();
 
+ writeMultipleBlock();
  }
 
  if (mode == 2)
@@ -353,34 +467,7 @@ void main()
 
   UART_Write_Text("Reading"); UART_Write(13); UART_Write(10); ;
  t = 0;
- numberOfSectors = 0;
-
- x = EEPROM_Read(0x82);
- numberOfSectors |= x << 8;
- Delay_ms(25);
- x = EEPROM_Read(0x81);
- numberOfSectors |= x;
- IntToStr(numberOfSectors, strNumOfSec);
-  UART_Write_Text(strNumOfSec); UART_Write(13); UART_Write(10); ;
- while(t < numberOfSectors)
- {
- hamdoc();
-
-
-
-
-
- }
-
-
-
- SPI1_Write(0xff);
- SPI1_Write(0xff);
- SPI1_Write(0x8D);
-
-
-
-  UART_Write_Text("Stopped. Press anykey!"); UART_Write(13); UART_Write(10); ;
+ readSingleBlock();
  while ( RD2_bit  &&  RD3_bit )
  {
  }

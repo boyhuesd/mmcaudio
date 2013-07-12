@@ -1010,6 +1010,7 @@ mmc_read_cid
 mmc_read_csd
 mmc_read_sector
 mmc_write_sector
+mmcinit
 mode
 modf
 mul_16x16_s
@@ -1352,6 +1353,7 @@ re2
 re2_bit
 re3
 re3_bit
+readsingleblock
 res032
 ri
 ri_bit
@@ -2153,6 +2155,7 @@ wren
 wren_bit
 wrerr
 wrerr_bit
+writemultipleblock
 writesingleblock
 wue
 wue_bit

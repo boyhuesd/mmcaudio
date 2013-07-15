@@ -85,12 +85,12 @@ char* codeToRam(const char* ctxt)
 
 
 /*********** BEGIN ADC *****************/
-unsigned char
+uint8_t
 adcRead(void)
 {
 	//TP0 = 1;
 	GO_bit = 1; // Begin conversion
-	while (!GO); // Wait for conversion completed
+	while (GO); // Wait for conversion completed
 	//TP0 = 0;
 	return ADRESH;
 }
@@ -352,18 +352,20 @@ writeMultipleBlock(void)
 	volatile uint8_t text[7];
 	volatile uint16_t rejected = 0;
 	
-	temp = sendCMD(25, 0); // send command 25
-	
+	temp = 1;
+	count = 0;
 	while (temp)
 	{
 		temp = sendCMD(25, 0);
+		count++;
+		IntToStr(count, text);
+		UWR(text);
 	}
 	UWR("Command accepted!");
-	
 	spiWrite(0xff);
 	spiWrite(0xff);
 	spiWrite(0xff); // Dummy clock
-	while (temp < 5) // repeat until Select button pressed
+	while (SLCT) // repeat until Select button pressed
 	{
 		spiWrite(0b11111100); // Data token for CMD 25
 		for (g = 0; g < 512; g++)
@@ -397,7 +399,6 @@ writeMultipleBlock(void)
 		{
 			spiReadData = spiRead();
 		}
-		temp++;
 	}
 	// if the SLCT button is pressed
 	// write the stop transfer token

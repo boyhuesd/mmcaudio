@@ -27,15 +27,15 @@ main
 					____DoIFC
 			UART_Write
 				____DoIFC
+		IntToStr
+			WordToStr
+				Div_16x16_U
 		UART_Write_Text
 			UART_Write
 				____DoIFC
 		UART_Write
 			____DoIFC
 		SPI1_Write
-		IntToStr
-			WordToStr
-				Div_16x16_U
 		SPI1_Read
 	readMultipleBlock
 		SPI1_Read

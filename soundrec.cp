@@ -105,12 +105,12 @@ char* codeToRam(const char* ctxt)
 
 
 
-unsigned char
+uint8_t
 adcRead(void)
 {
 
  GO_bit = 1;
- while (!GO);
+ while (GO);
 
  return ADRESH;
 }
@@ -363,18 +363,20 @@ writeMultipleBlock(void)
  volatile uint8_t text[7];
  volatile uint16_t rejected = 0;
 
- temp = sendCMD(25, 0);
-
+ temp = 1;
+ count = 0;
  while (temp)
  {
  temp = sendCMD(25, 0);
+ count++;
+ IntToStr(count, text);
+  UART_Write_Text(text); UART_Write(13); UART_Write(10); ;
  }
   UART_Write_Text("Command accepted!"); UART_Write(13); UART_Write(10); ;
-
   SPI1_Write(0xff) ;
   SPI1_Write(0xff) ;
   SPI1_Write(0xff) ;
- while (temp < 5)
+ while ( RD2_bit )
  {
   SPI1_Write(0b11111100) ;
  for (g = 0; g < 512; g++)
@@ -408,7 +410,6 @@ writeMultipleBlock(void)
  {
  spiReadData =  SPI1_Read(0xff) ;
  }
- temp++;
  }
 
 

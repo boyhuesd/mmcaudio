@@ -32,17 +32,16 @@ main
 		IntToStr
 			WordToStr
 				Div_16x16_U
-	readSingleBlock
-		SPI1_Write
+	readMultipleBlock
 		SPI1_Read
+		command
+			SPI1_Write
+			SPI1_Read
 		UART_Write_Text
 			UART_Write
 				____DoIFC
 		UART_Write
 			____DoIFC
-		command
-			SPI1_Write
-			SPI1_Read
 		IntToStr
 			WordToStr
 				Div_16x16_U

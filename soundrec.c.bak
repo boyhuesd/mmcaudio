@@ -189,7 +189,7 @@ mmcInit(void)
 	}
 	UWR("MMC Detected!");
 	// change spi clock rate to achive maximum speed
-	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV16, _SPI_DATA_SAMPLE_MIDDLE,\
+	//SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV16, _SPI_DATA_SAMPLE_MIDDLE,\
 	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 	Delay_ms(20);
 	
@@ -263,12 +263,22 @@ readSingleBlock(void)
 	// Send CMD 17 to read single block
 	command(17, arg, 0x95); // read 512 bytes from byte address 0
 	// Verify R1
-	while (spiReadData != 0)
+	count = 0;
+	while (count < 10)
 	{
 		spiReadData = spiRead();
-		UWR("Busy!");
+		if (spiReadData == 0)
+		{
+			UWR("CMD accepted!");
+			break;
+		}
+		count++;
 	}
-	UWR("CMD accepted!");
+	if (count >= 10)
+	{
+		UWR("CMD Rejected!");
+		while (1); // Trap the CPU
+	}
 	// continue to read until data token received
 	while (spiReadData != 0xfe)
 	{
@@ -308,7 +318,7 @@ writeMultipleBlock(void)
 	command(25, arg, 0x95);
 	// verify R1
 	count = 0;
-	while(count < 8)
+	while(count < 10)
 	{
 		if (spiReadData == 0)
 		{
@@ -317,7 +327,7 @@ writeMultipleBlock(void)
 		spiReadData = spiRead();
 		count++;
 	}
-	if (count >= 8)
+	if (count >= 10)
 	{
 		UWR("Command rejected!");
 	}
@@ -354,7 +364,6 @@ writeMultipleBlock(void)
 			UWR("Data rejected!");
 			while (1); // Trap the CPU
 		} 
-		while (1); // Trap the CPU
 		spiReadData = spiRead(); // check if the card is busy
 		while (spiReadData != 0xff)
 		{
@@ -372,6 +381,82 @@ writeMultipleBlock(void)
 		spiReadData = spiRead();
 	}
 	UWR("DONE Writing!")
+}
+
+
+void
+readMultipleBlock(void)
+{
+	volatile uint16_t g;
+	volatile uint8_t text[7];
+	// 1. Make sure the card is not busy
+	do 
+	{
+		spiReadData = spiRead();
+	}
+	while (spiReadData != 0xff);
+	// 2. Send CMD 18 to read multiple block
+	command(18, arg, 0x95);
+	count = 0;
+	do // verify R1 respond
+	{
+		if (spiReadData == 0)
+		{
+			UWR("Command accepted!");
+			break;
+		}
+		spiReadData = spiRead();
+		count++;
+	}
+	while (count < 10);
+	if (count >= 10)
+	{
+		UWR("Command Rejected!");
+		while (1); // Trap the CPU
+	}
+	while (SLCT) // play until SLCT button pressed
+	{
+		// 3. Read until received data token
+		do 
+		{
+			spiReadData = spiRead();
+		}
+		while (spiReadData != 0xfe);
+		// 4. Read 512 bytes of data
+		for (g = 0; g < 512; g++)
+		{
+			spiReadData = spiRead();
+			IntToStr(spiReadData, text);
+			UWR(text);
+			Delay_ms(2);
+		}
+		// 5. Read 2 bytes CRC
+		spiReadData = spiRead();
+		spiReadData = spiRead();
+	}
+	// STOP TRANSMISSION
+	// 6. Send stop transmission command
+	command(12, 0, 0x95);
+	count = 0;
+	do
+	{
+		if (spiReadData == 0)
+		{
+			UWR("Stopped Transfer!");
+			break;
+		}
+		spiReadData = spiRead();
+		count++;
+	}
+	while (count < 10);
+	// 7. Read until card is ready
+	do 
+	{
+		spiReadData = spiRead();
+	}
+	while (spiReadData != 0xff);
+	UWR("Card free!");
+	while (1); // Trap the CPU
 }
 
 //// ham ghi du lieu
@@ -529,7 +614,8 @@ void main()
 			// LCD_OUT(1, 6, codeToRam(infRdng));
 			UWR("Reading");
 			t = 0;
-			readSingleBlock();
+			//readSingleBlock();
+			readMultipleBlock();
 			while (SLCT && OK)
 			{
 			}

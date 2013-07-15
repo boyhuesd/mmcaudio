@@ -11,6 +11,9 @@ git commit -m "User comment"
 git push -u origin master // push from local to server
 git pull // pull from server to local
 git commit -a -m "..." // commit all
+// drop local changes and commits, fetch the latest history from the server
+git fetch origin
+git reset --hard origin/master
 ******************************************************************************/
 #include <stdint.h>
 

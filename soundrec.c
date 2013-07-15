@@ -189,7 +189,7 @@ mmcInit(void)
 	}
 	UWR("MMC Detected!");
 	// change spi clock rate to achive maximum speed
-	//SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV16, _SPI_DATA_SAMPLE_MIDDLE,\
+	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV16, _SPI_DATA_SAMPLE_MIDDLE,\
 	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 	Delay_ms(20);
 	
@@ -308,11 +308,11 @@ sendCMD(uint8_t cmd, uint32_t arg)
 	
 	// check if the card is ready to receive command
 	spiWrite(0xff);
-	spiReadData = spiRead();
-	while (spiReadData != 0xff);
+	do 
 	{
 		spiReadData = spiRead();
 	}
+	while (spiReadData != 0xff);
 	UWR("Card free!");
 	
 	// Send the CMD
@@ -321,7 +321,7 @@ sendCMD(uint8_t cmd, uint32_t arg)
 	spiWrite((uint8_t) (arg >> 16));
 	spiWrite((uint8_t) (arg >> 8));
 	spiWrite((uint8_t) arg);
-	spiWrite(0x95); // default CRC
+	spiWrite(0x95); // default CRC for SPI protocol
 	spiReadData = spiRead();
 	
 	while (retryTimes < 10)
@@ -352,14 +352,17 @@ writeMultipleBlock(void)
 	volatile uint8_t text[7];
 	volatile uint16_t rejected = 0;
 	
-	temp = 1;
-	count = 0;
-	while (temp)
+	while (1)
 	{
-		temp = sendCMD(25, 0);
-		count++;
-		IntToStr(count, text);
-		UWR(text);
+		if (sendCMD(25, 0))
+		{
+			UWR("Command rejected!");
+			Delay_ms(10);
+		}
+		else
+		{
+			break;
+		}
 	}
 	UWR("Command accepted!");
 	spiWrite(0xff);

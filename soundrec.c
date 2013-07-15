@@ -300,38 +300,66 @@ readSingleBlock(void)
 	UWR("DONE!");
 }
 
-void
-writeMultipleBlock(void)
+// better command sending function
+uint8_t
+sendCMD(uint8_t cmd, uint32_t arg)
 {
-	volatile uint16_t g;
-	volatile uint8_t temp = 0;
-	volatile uint8_t text[7];
+	uint8_t retryTimes = 0;
 	
+	// check if the card is ready to receive command
 	spiWrite(0xff);
 	spiReadData = spiRead();
 	while (spiReadData != 0xff);
 	{
 		spiReadData = spiRead();
 	}
-	UWR("Card ready!")
-	// Send CMD 25 to write multiple block
-	command(25, arg, 0x95);
-	// verify R1
-	count = 0;
-	while(count < 10)
+	UWR("Card free!");
+	
+	// Send the CMD
+	spiWrite(0b01000000 | cmd);
+	spiWrite((uint8_t) (arg >> 24));
+	spiWrite((uint8_t) (arg >> 16));
+	spiWrite((uint8_t) (arg >> 8));
+	spiWrite((uint8_t) arg);
+	spiWrite(0x95); // default CRC
+	spiReadData = spiRead();
+	
+	while (retryTimes < 10)
 	{
 		if (spiReadData == 0)
 		{
 			break;
 		}
 		spiReadData = spiRead();
-		count++;
+		retryTimes++;
 	}
-	if (count >= 10)
+	
+	if (retryTimes >= 10)
 	{
-		UWR("Command rejected!");
+		return 1; // command rejected
+	}
+	else
+	{
+		return 0; // command accepted
+	}
+}
+
+void
+writeMultipleBlock(void)
+{
+	volatile uint16_t g;
+	volatile uint8_t temp = 0;
+	volatile uint8_t text[7];
+	volatile uint16_t rejected = 0;
+	
+	temp = sendCMD(25, 0); // send command 25
+	
+	while (temp)
+	{
+		temp = sendCMD(25, 0);
 	}
 	UWR("Command accepted!");
+	
 	spiWrite(0xff);
 	spiWrite(0xff);
 	spiWrite(0xff); // Dummy clock
@@ -362,7 +390,7 @@ writeMultipleBlock(void)
 		if (count >= 8)
 		{
 			UWR("Data rejected!");
-			while (1); // Trap the CPU
+			rejected++;
 		} 
 		spiReadData = spiRead(); // check if the card is busy
 		while (spiReadData != 0xff)
@@ -381,6 +409,8 @@ writeMultipleBlock(void)
 		spiReadData = spiRead();
 	}
 	UWR("DONE Writing!")
+	IntToStr(rejected, text);
+	UWR(text); // Print out number of recjected sector
 }
 
 

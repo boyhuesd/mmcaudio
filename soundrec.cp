@@ -311,12 +311,12 @@ readSingleBlock(void)
   UART_Write_Text("DONE!"); UART_Write(13); UART_Write(10); ;
 }
 
-void
-writeMultipleBlock(void)
+
+uint8_t
+sendCMD(uint8_t cmd, uint32_t arg)
 {
- volatile uint16_t g;
- volatile uint8_t temp = 0;
- volatile uint8_t text[7];
+ uint8_t retryTimes = 0;
+
 
   SPI1_Write(0xff) ;
  spiReadData =  SPI1_Read(0xff) ;
@@ -324,25 +324,53 @@ writeMultipleBlock(void)
  {
  spiReadData =  SPI1_Read(0xff) ;
  }
-  UART_Write_Text("Card ready!"); UART_Write(13); UART_Write(10); 
+  UART_Write_Text("Card free!"); UART_Write(13); UART_Write(10); ;
 
- command(25, arg, 0x95);
 
- count = 0;
- while(count < 10)
+  SPI1_Write(0b01000000 | cmd) ;
+  SPI1_Write((uint8_t) (arg >> 24)) ;
+  SPI1_Write((uint8_t) (arg >> 16)) ;
+  SPI1_Write((uint8_t) (arg >> 8)) ;
+  SPI1_Write((uint8_t) arg) ;
+  SPI1_Write(0x95) ;
+ spiReadData =  SPI1_Read(0xff) ;
+
+ while (retryTimes < 10)
  {
  if (spiReadData == 0)
  {
  break;
  }
  spiReadData =  SPI1_Read(0xff) ;
- count++;
+ retryTimes++;
  }
- if (count >= 10)
+
+ if (retryTimes >= 10)
  {
-  UART_Write_Text("Command rejected!"); UART_Write(13); UART_Write(10); ;
+ return 1;
+ }
+ else
+ {
+ return 0;
+ }
+}
+
+void
+writeMultipleBlock(void)
+{
+ volatile uint16_t g;
+ volatile uint8_t temp = 0;
+ volatile uint8_t text[7];
+ volatile uint16_t rejected = 0;
+
+ temp = sendCMD(25, 0);
+
+ while (temp)
+ {
+ temp = sendCMD(25, 0);
  }
   UART_Write_Text("Command accepted!"); UART_Write(13); UART_Write(10); ;
+
   SPI1_Write(0xff) ;
   SPI1_Write(0xff) ;
   SPI1_Write(0xff) ;
@@ -373,7 +401,7 @@ writeMultipleBlock(void)
  if (count >= 8)
  {
   UART_Write_Text("Data rejected!"); UART_Write(13); UART_Write(10); ;
- while (1);
+ rejected++;
  }
  spiReadData =  SPI1_Read(0xff) ;
  while (spiReadData != 0xff)
@@ -392,6 +420,8 @@ writeMultipleBlock(void)
  spiReadData =  SPI1_Read(0xff) ;
  }
   UART_Write_Text("DONE Writing!"); UART_Write(13); UART_Write(10); 
+ IntToStr(rejected, text);
+  UART_Write_Text(text); UART_Write(13); UART_Write(10); ;
 }
 
 

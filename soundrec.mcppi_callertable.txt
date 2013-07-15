@@ -19,19 +19,24 @@ main
 	UART_Write
 		____DoIFC
 	writeMultipleBlock
-		SPI1_Write
-		SPI1_Read
+		sendCMD
+			SPI1_Write
+			SPI1_Read
+			UART_Write_Text
+				UART_Write
+					____DoIFC
+			UART_Write
+				____DoIFC
 		UART_Write_Text
 			UART_Write
 				____DoIFC
 		UART_Write
 			____DoIFC
-		command
-			SPI1_Write
-			SPI1_Read
+		SPI1_Write
 		IntToStr
 			WordToStr
 				Div_16x16_U
+		SPI1_Read
 	readMultipleBlock
 		SPI1_Read
 		command

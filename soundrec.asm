@@ -329,7 +329,7 @@ L_mmcInit14:
 	SUBWF       _count+0, 0 
 	BTFSC       STATUS+0, 0 
 	GOTO        L_mmcInit15
-L__mmcInit160:
+L__mmcInit161:
 ;soundrec.c,157 :: 		spiReadData = spiRead();
 	MOVLW       255
 	MOVWF       FARG_SPI1_Read_buffer+0 
@@ -391,13 +391,13 @@ L_mmcInit21:
 	XORLW       3
 	SUBWF       R0, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__mmcInit167
+	GOTO        L__mmcInit168
 	MOVLW       232
 	SUBWF       _count+0, 0 
-L__mmcInit167:
+L__mmcInit168:
 	BTFSC       STATUS+0, 0 
 	GOTO        L_mmcInit22
-L__mmcInit159:
+L__mmcInit160:
 ;soundrec.c,169 :: 		command(1, 0, 0xff);
 	MOVLW       1
 	MOVWF       FARG_command_command+0 
@@ -430,10 +430,10 @@ L_mmcInit22:
 	XORLW       3
 	SUBWF       R0, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__mmcInit168
+	GOTO        L__mmcInit169
 	MOVLW       232
 	SUBWF       _count+0, 0 
-L__mmcInit168:
+L__mmcInit169:
 	BTFSS       STATUS+0, 0 
 	GOTO        L_mmcInit25
 ;soundrec.c,175 :: 		UWR("Card ERROR - CMD1");
@@ -480,13 +480,13 @@ L_mmcInit28:
 	XORLW       3
 	SUBWF       R0, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__mmcInit169
+	GOTO        L__mmcInit170
 	MOVLW       232
 	SUBWF       _count+0, 0 
-L__mmcInit169:
+L__mmcInit170:
 	BTFSC       STATUS+0, 0 
 	GOTO        L_mmcInit29
-L__mmcInit158:
+L__mmcInit159:
 ;soundrec.c,182 :: 		spiReadData = spiRead();
 	MOVLW       255
 	MOVWF       FARG_SPI1_Read_buffer+0 
@@ -509,10 +509,10 @@ L_mmcInit29:
 	XORLW       3
 	SUBWF       R0, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__mmcInit170
+	GOTO        L__mmcInit171
 	MOVLW       232
 	SUBWF       _count+0, 0 
-L__mmcInit170:
+L__mmcInit171:
 	BTFSS       STATUS+0, 0 
 	GOTO        L_mmcInit32
 ;soundrec.c,187 :: 		UWR("Card error - CMD16");
@@ -672,10 +672,10 @@ L_writeSingleBlock40:
 	MOVLW       2
 	SUBWF       writeSingleBlock_g_L0+1, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__writeSingleBlock172
+	GOTO        L__writeSingleBlock173
 	MOVLW       0
 	SUBWF       writeSingleBlock_g_L0+0, 0 
-L__writeSingleBlock172:
+L__writeSingleBlock173:
 	BTFSC       STATUS+0, 0 
 	GOTO        L_writeSingleBlock41
 ;soundrec.c,223 :: 		spiWrite(0x50);
@@ -960,10 +960,10 @@ L_readSingleBlock59:
 	MOVLW       2
 	SUBWF       readSingleBlock_numOfBytes_L0+1, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__readSingleBlock174
+	GOTO        L__readSingleBlock175
 	MOVLW       0
 	SUBWF       readSingleBlock_numOfBytes_L0+0, 0 
-L__readSingleBlock174:
+L__readSingleBlock175:
 	BTFSC       STATUS+0, 0 
 	GOTO        L_readSingleBlock60
 ;soundrec.c,291 :: 		spiReadData = spiRead();
@@ -1182,13 +1182,12 @@ L_end_sendCMD:
 _writeMultipleBlock:
 
 ;soundrec.c,348 :: 		writeMultipleBlock(void)
-;soundrec.c,351 :: 		volatile uint8_t temp = 0;
-;soundrec.c,353 :: 		volatile uint16_t rejected = 0;
+;soundrec.c,352 :: 		volatile uint16_t rejected = 0;
 	CLRF        writeMultipleBlock_rejected_L0+0 
 	CLRF        writeMultipleBlock_rejected_L0+1 
-;soundrec.c,355 :: 		while (1)
+;soundrec.c,354 :: 		while (1)
 L_writeMultipleBlock71:
-;soundrec.c,357 :: 		if (sendCMD(25, 0))
+;soundrec.c,356 :: 		if (sendCMD(25, 0))
 	MOVLW       25
 	MOVWF       FARG_sendCMD_cmd+0 
 	CLRF        FARG_sendCMD_arg+0 
@@ -1199,7 +1198,7 @@ L_writeMultipleBlock71:
 	MOVF        R0, 1 
 	BTFSC       STATUS+0, 2 
 	GOTO        L_writeMultipleBlock73
-;soundrec.c,359 :: 		UWR("Command rejected!");
+;soundrec.c,358 :: 		UWR("Command rejected!");
 	MOVLW       ?lstr22_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr22_soundrec+0)
@@ -1211,7 +1210,7 @@ L_writeMultipleBlock71:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,360 :: 		Delay_ms(10);
+;soundrec.c,359 :: 		Delay_ms(10);
 	MOVLW       65
 	MOVWF       R12, 0
 	MOVLW       238
@@ -1222,17 +1221,17 @@ L_writeMultipleBlock74:
 	DECFSZ      R12, 1, 1
 	BRA         L_writeMultipleBlock74
 	NOP
-;soundrec.c,361 :: 		}
+;soundrec.c,360 :: 		}
 	GOTO        L_writeMultipleBlock75
 L_writeMultipleBlock73:
-;soundrec.c,364 :: 		break;
+;soundrec.c,363 :: 		break;
 	GOTO        L_writeMultipleBlock72
-;soundrec.c,365 :: 		}
+;soundrec.c,364 :: 		}
 L_writeMultipleBlock75:
-;soundrec.c,366 :: 		}
+;soundrec.c,365 :: 		}
 	GOTO        L_writeMultipleBlock71
 L_writeMultipleBlock72:
-;soundrec.c,367 :: 		UWR("Command accepted!");
+;soundrec.c,366 :: 		UWR("Command accepted!");
 	MOVLW       ?lstr23_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr23_soundrec+0)
@@ -1244,18 +1243,21 @@ L_writeMultipleBlock72:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
+;soundrec.c,367 :: 		spiWrite(0xff);
+	MOVLW       255
+	MOVWF       FARG_SPI1_Write_data_+0 
+	CALL        _SPI1_Write+0, 0
 ;soundrec.c,368 :: 		spiWrite(0xff);
 	MOVLW       255
 	MOVWF       FARG_SPI1_Write_data_+0 
 	CALL        _SPI1_Write+0, 0
-;soundrec.c,369 :: 		spiWrite(0xff);
+;soundrec.c,369 :: 		spiWrite(0xff); // Dummy clock
 	MOVLW       255
 	MOVWF       FARG_SPI1_Write_data_+0 
 	CALL        _SPI1_Write+0, 0
-;soundrec.c,370 :: 		spiWrite(0xff); // Dummy clock
-	MOVLW       255
-	MOVWF       FARG_SPI1_Write_data_+0 
-	CALL        _SPI1_Write+0, 0
+;soundrec.c,370 :: 		numberOfSectors = 0; // Initialize the number of sector will be recorded
+	CLRF        _numberOfSectors+0 
+	CLRF        _numberOfSectors+1 
 ;soundrec.c,371 :: 		while (SLCT) // repeat until Select button pressed
 L_writeMultipleBlock76:
 	BTFSS       RD2_bit+0, BitPos(RD2_bit+0) 
@@ -1271,10 +1273,10 @@ L_writeMultipleBlock78:
 	MOVLW       2
 	SUBWF       writeMultipleBlock_g_L0+1, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__writeMultipleBlock177
+	GOTO        L__writeMultipleBlock178
 	MOVLW       0
 	SUBWF       writeMultipleBlock_g_L0+0, 0 
-L__writeMultipleBlock177:
+L__writeMultipleBlock178:
 	BTFSC       STATUS+0, 0 
 	GOTO        L_writeMultipleBlock79
 ;soundrec.c,376 :: 		spiWrite((uint8_t) g);
@@ -1359,7 +1361,94 @@ L_writeMultipleBlock82:
 	XORLW       5
 	BTFSS       STATUS+0, 2 
 	GOTO        L_writeMultipleBlock84
-;soundrec.c,390 :: 		UWR("Data accepted!");
+;soundrec.c,391 :: 		numberOfSectors++;
+	MOVLW       1
+	ADDWF       _numberOfSectors+0, 0 
+	MOVWF       R0 
+	MOVLW       0
+	ADDWFC      _numberOfSectors+1, 0 
+	MOVWF       R1 
+	MOVF        R0, 0 
+	MOVWF       _numberOfSectors+0 
+	MOVF        R1, 0 
+	MOVWF       _numberOfSectors+1 
+;soundrec.c,392 :: 		break;
+	GOTO        L_writeMultipleBlock83
+;soundrec.c,393 :: 		}
+L_writeMultipleBlock84:
+;soundrec.c,394 :: 		count++;
+	MOVF        _count+0, 0 
+	ADDLW       1
+	MOVWF       R0 
+	MOVF        R0, 0 
+	MOVWF       _count+0 
+;soundrec.c,395 :: 		}
+	GOTO        L_writeMultipleBlock82
+L_writeMultipleBlock83:
+;soundrec.c,396 :: 		if (count >= 8)
+	MOVLW       8
+	SUBWF       _count+0, 0 
+	BTFSS       STATUS+0, 0 
+	GOTO        L_writeMultipleBlock85
+;soundrec.c,399 :: 		rejected++;
+	MOVLW       1
+	ADDWF       writeMultipleBlock_rejected_L0+0, 0 
+	MOVWF       R0 
+	MOVLW       0
+	ADDWFC      writeMultipleBlock_rejected_L0+1, 0 
+	MOVWF       R1 
+	MOVF        R0, 0 
+	MOVWF       writeMultipleBlock_rejected_L0+0 
+	MOVF        R1, 0 
+	MOVWF       writeMultipleBlock_rejected_L0+1 
+;soundrec.c,400 :: 		}
+L_writeMultipleBlock85:
+;soundrec.c,402 :: 		do // check if the card is busy
+L_writeMultipleBlock86:
+;soundrec.c,404 :: 		spiReadData = spiRead();
+	MOVLW       255
+	MOVWF       FARG_SPI1_Read_buffer+0 
+	CALL        _SPI1_Read+0, 0
+	MOVF        R0, 0 
+	MOVWF       _spiReadData+0 
+;soundrec.c,406 :: 		while (spiReadData != 0xff);
+	MOVF        _spiReadData+0, 0 
+	XORLW       255
+	BTFSS       STATUS+0, 2 
+	GOTO        L_writeMultipleBlock86
+;soundrec.c,407 :: 		}
+	GOTO        L_writeMultipleBlock76
+L_writeMultipleBlock77:
+;soundrec.c,410 :: 		spiWrite(0b11111101);
+	MOVLW       253
+	MOVWF       FARG_SPI1_Write_data_+0 
+	CALL        _SPI1_Write+0, 0
+;soundrec.c,411 :: 		spiWrite(0xff);
+	MOVLW       255
+	MOVWF       FARG_SPI1_Write_data_+0 
+	CALL        _SPI1_Write+0, 0
+;soundrec.c,412 :: 		spiReadData = spiRead();
+	MOVLW       255
+	MOVWF       FARG_SPI1_Read_buffer+0 
+	CALL        _SPI1_Read+0, 0
+	MOVF        R0, 0 
+	MOVWF       _spiReadData+0 
+;soundrec.c,413 :: 		while (spiReadData != 0xff) // check if the card is busy
+L_writeMultipleBlock89:
+	MOVF        _spiReadData+0, 0 
+	XORLW       255
+	BTFSC       STATUS+0, 2 
+	GOTO        L_writeMultipleBlock90
+;soundrec.c,415 :: 		spiReadData = spiRead();
+	MOVLW       255
+	MOVWF       FARG_SPI1_Read_buffer+0 
+	CALL        _SPI1_Read+0, 0
+	MOVF        R0, 0 
+	MOVWF       _spiReadData+0 
+;soundrec.c,416 :: 		}
+	GOTO        L_writeMultipleBlock89
+L_writeMultipleBlock90:
+;soundrec.c,417 :: 		UWR("STOPPED!")
 	MOVLW       ?lstr24_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr24_soundrec+0)
@@ -1371,25 +1460,17 @@ L_writeMultipleBlock82:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,391 :: 		break;
-	GOTO        L_writeMultipleBlock83
-;soundrec.c,392 :: 		}
-L_writeMultipleBlock84:
-;soundrec.c,393 :: 		count++;
-	MOVF        _count+0, 0 
-	ADDLW       1
-	MOVWF       R0 
-	MOVF        R0, 0 
-	MOVWF       _count+0 
-;soundrec.c,394 :: 		}
-	GOTO        L_writeMultipleBlock82
-L_writeMultipleBlock83:
-;soundrec.c,395 :: 		if (count >= 8)
-	MOVLW       8
-	SUBWF       _count+0, 0 
-	BTFSS       STATUS+0, 0 
-	GOTO        L_writeMultipleBlock85
-;soundrec.c,397 :: 		UWR("Data rejected!");
+;soundrec.c,418 :: 		IntToStr(numberOfSectors, text);
+	MOVF        _numberOfSectors+0, 0 
+	MOVWF       FARG_IntToStr_input+0 
+	MOVF        _numberOfSectors+1, 0 
+	MOVWF       FARG_IntToStr_input+1 
+	MOVLW       writeMultipleBlock_text_L0+0
+	MOVWF       FARG_IntToStr_output+0 
+	MOVLW       hi_addr(writeMultipleBlock_text_L0+0)
+	MOVWF       FARG_IntToStr_output+1 
+	CALL        _IntToStr+0, 0
+;soundrec.c,419 :: 		UWR("Written:")
 	MOVLW       ?lstr25_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr25_soundrec+0)
@@ -1401,73 +1482,29 @@ L_writeMultipleBlock83:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,398 :: 		rejected++;
-	MOVLW       1
-	ADDWF       writeMultipleBlock_rejected_L0+0, 0 
-	MOVWF       R0 
-	MOVLW       0
-	ADDWFC      writeMultipleBlock_rejected_L0+1, 0 
-	MOVWF       R1 
-	MOVF        R0, 0 
-	MOVWF       writeMultipleBlock_rejected_L0+0 
-	MOVF        R1, 0 
-	MOVWF       writeMultipleBlock_rejected_L0+1 
-;soundrec.c,399 :: 		}
-L_writeMultipleBlock85:
-;soundrec.c,400 :: 		spiReadData = spiRead(); // check if the card is busy
-	MOVLW       255
-	MOVWF       FARG_SPI1_Read_buffer+0 
-	CALL        _SPI1_Read+0, 0
-	MOVF        R0, 0 
-	MOVWF       _spiReadData+0 
-;soundrec.c,401 :: 		while (spiReadData != 0xff)
-L_writeMultipleBlock86:
-	MOVF        _spiReadData+0, 0 
-	XORLW       255
-	BTFSC       STATUS+0, 2 
-	GOTO        L_writeMultipleBlock87
-;soundrec.c,403 :: 		spiReadData = spiRead();
-	MOVLW       255
-	MOVWF       FARG_SPI1_Read_buffer+0 
-	CALL        _SPI1_Read+0, 0
-	MOVF        R0, 0 
-	MOVWF       _spiReadData+0 
-;soundrec.c,404 :: 		}
-	GOTO        L_writeMultipleBlock86
-L_writeMultipleBlock87:
-;soundrec.c,405 :: 		}
-	GOTO        L_writeMultipleBlock76
-L_writeMultipleBlock77:
-;soundrec.c,408 :: 		spiWrite(0b11111101);
-	MOVLW       253
-	MOVWF       FARG_SPI1_Write_data_+0 
-	CALL        _SPI1_Write+0, 0
-;soundrec.c,409 :: 		spiWrite(0xff);
-	MOVLW       255
-	MOVWF       FARG_SPI1_Write_data_+0 
-	CALL        _SPI1_Write+0, 0
-;soundrec.c,410 :: 		spiReadData = spiRead();
-	MOVLW       255
-	MOVWF       FARG_SPI1_Read_buffer+0 
-	CALL        _SPI1_Read+0, 0
-	MOVF        R0, 0 
-	MOVWF       _spiReadData+0 
-;soundrec.c,411 :: 		while (spiReadData != 0xff) // check if the card is busy
-L_writeMultipleBlock88:
-	MOVF        _spiReadData+0, 0 
-	XORLW       255
-	BTFSC       STATUS+0, 2 
-	GOTO        L_writeMultipleBlock89
-;soundrec.c,413 :: 		spiReadData = spiRead();
-	MOVLW       255
-	MOVWF       FARG_SPI1_Read_buffer+0 
-	CALL        _SPI1_Read+0, 0
-	MOVF        R0, 0 
-	MOVWF       _spiReadData+0 
-;soundrec.c,414 :: 		}
-	GOTO        L_writeMultipleBlock88
-L_writeMultipleBlock89:
-;soundrec.c,415 :: 		UWR("DONE Writing!")
+;soundrec.c,420 :: 		UWR(text);
+	MOVLW       writeMultipleBlock_text_L0+0
+	MOVWF       FARG_UART_Write_Text_uart_text+0 
+	MOVLW       hi_addr(writeMultipleBlock_text_L0+0)
+	MOVWF       FARG_UART_Write_Text_uart_text+1 
+	CALL        _UART_Write_Text+0, 0
+	MOVLW       13
+	MOVWF       FARG_UART_Write__data+0 
+	CALL        _UART_Write+0, 0
+	MOVLW       10
+	MOVWF       FARG_UART_Write__data+0 
+	CALL        _UART_Write+0, 0
+;soundrec.c,421 :: 		IntToStr(rejected, text);
+	MOVF        writeMultipleBlock_rejected_L0+0, 0 
+	MOVWF       FARG_IntToStr_input+0 
+	MOVF        writeMultipleBlock_rejected_L0+1, 0 
+	MOVWF       FARG_IntToStr_input+1 
+	MOVLW       writeMultipleBlock_text_L0+0
+	MOVWF       FARG_IntToStr_output+0 
+	MOVLW       hi_addr(writeMultipleBlock_text_L0+0)
+	MOVWF       FARG_IntToStr_output+1 
+	CALL        _IntToStr+0, 0
+;soundrec.c,422 :: 		UWR("Lost: ");
 	MOVLW       ?lstr26_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr26_soundrec+0)
@@ -1479,17 +1516,7 @@ L_writeMultipleBlock89:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,416 :: 		IntToStr(rejected, text);
-	MOVF        writeMultipleBlock_rejected_L0+0, 0 
-	MOVWF       FARG_IntToStr_input+0 
-	MOVF        writeMultipleBlock_rejected_L0+1, 0 
-	MOVWF       FARG_IntToStr_input+1 
-	MOVLW       writeMultipleBlock_text_L0+0
-	MOVWF       FARG_IntToStr_output+0 
-	MOVLW       hi_addr(writeMultipleBlock_text_L0+0)
-	MOVWF       FARG_IntToStr_output+1 
-	CALL        _IntToStr+0, 0
-;soundrec.c,417 :: 		UWR(text); // Print out number of recjected sector
+;soundrec.c,423 :: 		UWR(text); // Print out number of recjected sector
 	MOVLW       writeMultipleBlock_text_L0+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(writeMultipleBlock_text_L0+0)
@@ -1501,28 +1528,31 @@ L_writeMultipleBlock89:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,418 :: 		}
+;soundrec.c,424 :: 		}
 L_end_writeMultipleBlock:
 	RETURN      0
 ; end of _writeMultipleBlock
 
 _readMultipleBlock:
 
-;soundrec.c,422 :: 		readMultipleBlock(void)
-;soundrec.c,427 :: 		do
-L_readMultipleBlock90:
-;soundrec.c,429 :: 		spiReadData = spiRead();
+;soundrec.c,428 :: 		readMultipleBlock(void)
+;soundrec.c,432 :: 		volatile uint16_t sectorIndex = 0;
+	CLRF        readMultipleBlock_sectorIndex_L0+0 
+	CLRF        readMultipleBlock_sectorIndex_L0+1 
+;soundrec.c,434 :: 		do
+L_readMultipleBlock91:
+;soundrec.c,436 :: 		spiReadData = spiRead();
 	MOVLW       255
 	MOVWF       FARG_SPI1_Read_buffer+0 
 	CALL        _SPI1_Read+0, 0
 	MOVF        R0, 0 
 	MOVWF       _spiReadData+0 
-;soundrec.c,431 :: 		while (spiReadData != 0xff);
+;soundrec.c,438 :: 		while (spiReadData != 0xff);
 	MOVF        _spiReadData+0, 0 
 	XORLW       255
 	BTFSS       STATUS+0, 2 
-	GOTO        L_readMultipleBlock90
-;soundrec.c,433 :: 		command(18, arg, 0x95);
+	GOTO        L_readMultipleBlock91
+;soundrec.c,440 :: 		command(18, arg, 0x95);
 	MOVLW       18
 	MOVWF       FARG_command_command+0 
 	MOVF        _arg+0, 0 
@@ -1536,16 +1566,16 @@ L_readMultipleBlock90:
 	MOVLW       149
 	MOVWF       FARG_command_CRCbits+0 
 	CALL        _command+0, 0
-;soundrec.c,434 :: 		count = 0;
+;soundrec.c,441 :: 		count = 0;
 	CLRF        _count+0 
-;soundrec.c,435 :: 		do // verify R1 respond
-L_readMultipleBlock93:
-;soundrec.c,437 :: 		if (spiReadData == 0)
+;soundrec.c,442 :: 		do // verify R1 respond
+L_readMultipleBlock94:
+;soundrec.c,444 :: 		if (spiReadData == 0)
 	MOVF        _spiReadData+0, 0 
 	XORLW       0
 	BTFSS       STATUS+0, 2 
-	GOTO        L_readMultipleBlock96
-;soundrec.c,439 :: 		UWR("Command accepted!");
+	GOTO        L_readMultipleBlock97
+;soundrec.c,446 :: 		UWR("Command accepted!");
 	MOVLW       ?lstr27_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr27_soundrec+0)
@@ -1557,34 +1587,34 @@ L_readMultipleBlock93:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,440 :: 		break;
-	GOTO        L_readMultipleBlock94
-;soundrec.c,441 :: 		}
-L_readMultipleBlock96:
-;soundrec.c,442 :: 		spiReadData = spiRead();
+;soundrec.c,447 :: 		break;
+	GOTO        L_readMultipleBlock95
+;soundrec.c,448 :: 		}
+L_readMultipleBlock97:
+;soundrec.c,449 :: 		spiReadData = spiRead();
 	MOVLW       255
 	MOVWF       FARG_SPI1_Read_buffer+0 
 	CALL        _SPI1_Read+0, 0
 	MOVF        R0, 0 
 	MOVWF       _spiReadData+0 
-;soundrec.c,443 :: 		count++;
+;soundrec.c,450 :: 		count++;
 	MOVF        _count+0, 0 
 	ADDLW       1
 	MOVWF       R0 
 	MOVF        R0, 0 
 	MOVWF       _count+0 
-;soundrec.c,445 :: 		while (count < 10);
+;soundrec.c,452 :: 		while (count < 10);
 	MOVLW       10
 	SUBWF       _count+0, 0 
 	BTFSS       STATUS+0, 0 
-	GOTO        L_readMultipleBlock93
-L_readMultipleBlock94:
-;soundrec.c,446 :: 		if (count >= 10)
+	GOTO        L_readMultipleBlock94
+L_readMultipleBlock95:
+;soundrec.c,453 :: 		if (count >= 10)
 	MOVLW       10
 	SUBWF       _count+0, 0 
 	BTFSS       STATUS+0, 0 
-	GOTO        L_readMultipleBlock97
-;soundrec.c,448 :: 		UWR("Command Rejected!");
+	GOTO        L_readMultipleBlock98
+;soundrec.c,455 :: 		UWR("Command Rejected!");
 	MOVLW       ?lstr28_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr28_soundrec+0)
@@ -1596,48 +1626,55 @@ L_readMultipleBlock94:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,449 :: 		while (1); // Trap the CPU
+;soundrec.c,456 :: 		while (1); // Trap the CPU
+L_readMultipleBlock99:
+	GOTO        L_readMultipleBlock99
+;soundrec.c,457 :: 		}
 L_readMultipleBlock98:
-	GOTO        L_readMultipleBlock98
-;soundrec.c,450 :: 		}
-L_readMultipleBlock97:
-;soundrec.c,451 :: 		while (SLCT) // play until SLCT button pressed
-L_readMultipleBlock100:
-	BTFSS       RD2_bit+0, BitPos(RD2_bit+0) 
-	GOTO        L_readMultipleBlock101
-;soundrec.c,454 :: 		do
-L_readMultipleBlock102:
-;soundrec.c,456 :: 		spiReadData = spiRead();
+;soundrec.c,458 :: 		while (sectorIndex < numberOfSectors)
+L_readMultipleBlock101:
+	MOVF        _numberOfSectors+1, 0 
+	SUBWF       readMultipleBlock_sectorIndex_L0+1, 0 
+	BTFSS       STATUS+0, 2 
+	GOTO        L__readMultipleBlock180
+	MOVF        _numberOfSectors+0, 0 
+	SUBWF       readMultipleBlock_sectorIndex_L0+0, 0 
+L__readMultipleBlock180:
+	BTFSC       STATUS+0, 0 
+	GOTO        L_readMultipleBlock102
+;soundrec.c,461 :: 		do
+L_readMultipleBlock103:
+;soundrec.c,463 :: 		spiReadData = spiRead();
 	MOVLW       255
 	MOVWF       FARG_SPI1_Read_buffer+0 
 	CALL        _SPI1_Read+0, 0
 	MOVF        R0, 0 
 	MOVWF       _spiReadData+0 
-;soundrec.c,458 :: 		while (spiReadData != 0xfe);
+;soundrec.c,465 :: 		while (spiReadData != 0xfe);
 	MOVF        _spiReadData+0, 0 
 	XORLW       254
 	BTFSS       STATUS+0, 2 
-	GOTO        L_readMultipleBlock102
-;soundrec.c,460 :: 		for (g = 0; g < 512; g++)
+	GOTO        L_readMultipleBlock103
+;soundrec.c,467 :: 		for (g = 0; g < 512; g++)
 	CLRF        readMultipleBlock_g_L0+0 
 	CLRF        readMultipleBlock_g_L0+1 
-L_readMultipleBlock105:
+L_readMultipleBlock106:
 	MOVLW       2
 	SUBWF       readMultipleBlock_g_L0+1, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__readMultipleBlock179
+	GOTO        L__readMultipleBlock181
 	MOVLW       0
 	SUBWF       readMultipleBlock_g_L0+0, 0 
-L__readMultipleBlock179:
+L__readMultipleBlock181:
 	BTFSC       STATUS+0, 0 
-	GOTO        L_readMultipleBlock106
-;soundrec.c,462 :: 		spiReadData = spiRead();
+	GOTO        L_readMultipleBlock107
+;soundrec.c,469 :: 		spiReadData = spiRead();
 	MOVLW       255
 	MOVWF       FARG_SPI1_Read_buffer+0 
 	CALL        _SPI1_Read+0, 0
 	MOVF        R0, 0 
 	MOVWF       _spiReadData+0 
-;soundrec.c,463 :: 		IntToStr(spiReadData, text);
+;soundrec.c,470 :: 		IntToStr(spiReadData, text);
 	MOVF        _spiReadData+0, 0 
 	MOVWF       FARG_IntToStr_input+0 
 	MOVLW       0
@@ -1647,7 +1684,7 @@ L__readMultipleBlock179:
 	MOVLW       hi_addr(readMultipleBlock_text_L0+0)
 	MOVWF       FARG_IntToStr_output+1 
 	CALL        _IntToStr+0, 0
-;soundrec.c,464 :: 		UWR(text);
+;soundrec.c,471 :: 		UWR(text);
 	MOVLW       readMultipleBlock_text_L0+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(readMultipleBlock_text_L0+0)
@@ -1659,19 +1696,19 @@ L__readMultipleBlock179:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,465 :: 		Delay_ms(2);
+;soundrec.c,472 :: 		Delay_ms(2);
 	MOVLW       13
 	MOVWF       R12, 0
 	MOVLW       251
 	MOVWF       R13, 0
-L_readMultipleBlock108:
+L_readMultipleBlock109:
 	DECFSZ      R13, 1, 1
-	BRA         L_readMultipleBlock108
+	BRA         L_readMultipleBlock109
 	DECFSZ      R12, 1, 1
-	BRA         L_readMultipleBlock108
+	BRA         L_readMultipleBlock109
 	NOP
 	NOP
-;soundrec.c,460 :: 		for (g = 0; g < 512; g++)
+;soundrec.c,467 :: 		for (g = 0; g < 512; g++)
 	MOVLW       1
 	ADDWF       readMultipleBlock_g_L0+0, 0 
 	MOVWF       R0 
@@ -1682,25 +1719,36 @@ L_readMultipleBlock108:
 	MOVWF       readMultipleBlock_g_L0+0 
 	MOVF        R1, 0 
 	MOVWF       readMultipleBlock_g_L0+1 
-;soundrec.c,466 :: 		}
-	GOTO        L_readMultipleBlock105
-L_readMultipleBlock106:
-;soundrec.c,468 :: 		spiReadData = spiRead();
+;soundrec.c,473 :: 		}
+	GOTO        L_readMultipleBlock106
+L_readMultipleBlock107:
+;soundrec.c,475 :: 		spiReadData = spiRead();
 	MOVLW       255
 	MOVWF       FARG_SPI1_Read_buffer+0 
 	CALL        _SPI1_Read+0, 0
 	MOVF        R0, 0 
 	MOVWF       _spiReadData+0 
-;soundrec.c,469 :: 		spiReadData = spiRead();
+;soundrec.c,476 :: 		spiReadData = spiRead();
 	MOVLW       255
 	MOVWF       FARG_SPI1_Read_buffer+0 
 	CALL        _SPI1_Read+0, 0
 	MOVF        R0, 0 
 	MOVWF       _spiReadData+0 
-;soundrec.c,470 :: 		}
-	GOTO        L_readMultipleBlock100
-L_readMultipleBlock101:
-;soundrec.c,473 :: 		command(12, 0, 0x95);
+;soundrec.c,477 :: 		sectorIndex++;
+	MOVLW       1
+	ADDWF       readMultipleBlock_sectorIndex_L0+0, 0 
+	MOVWF       R0 
+	MOVLW       0
+	ADDWFC      readMultipleBlock_sectorIndex_L0+1, 0 
+	MOVWF       R1 
+	MOVF        R0, 0 
+	MOVWF       readMultipleBlock_sectorIndex_L0+0 
+	MOVF        R1, 0 
+	MOVWF       readMultipleBlock_sectorIndex_L0+1 
+;soundrec.c,478 :: 		}
+	GOTO        L_readMultipleBlock101
+L_readMultipleBlock102:
+;soundrec.c,481 :: 		command(12, 0, 0x95);
 	MOVLW       12
 	MOVWF       FARG_command_command+0 
 	CLRF        FARG_command_fourbyte_arg+0 
@@ -1710,16 +1758,16 @@ L_readMultipleBlock101:
 	MOVLW       149
 	MOVWF       FARG_command_CRCbits+0 
 	CALL        _command+0, 0
-;soundrec.c,474 :: 		count = 0;
+;soundrec.c,482 :: 		count = 0;
 	CLRF        _count+0 
-;soundrec.c,475 :: 		do
-L_readMultipleBlock109:
-;soundrec.c,477 :: 		if (spiReadData == 0)
+;soundrec.c,483 :: 		do
+L_readMultipleBlock110:
+;soundrec.c,485 :: 		if (spiReadData == 0)
 	MOVF        _spiReadData+0, 0 
 	XORLW       0
 	BTFSS       STATUS+0, 2 
-	GOTO        L_readMultipleBlock112
-;soundrec.c,479 :: 		UWR("Stopped Transfer!");
+	GOTO        L_readMultipleBlock113
+;soundrec.c,487 :: 		UWR("Stopped Transfer!");
 	MOVLW       ?lstr29_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr29_soundrec+0)
@@ -1731,42 +1779,42 @@ L_readMultipleBlock109:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,480 :: 		break;
-	GOTO        L_readMultipleBlock110
-;soundrec.c,481 :: 		}
-L_readMultipleBlock112:
-;soundrec.c,482 :: 		spiReadData = spiRead();
+;soundrec.c,488 :: 		break;
+	GOTO        L_readMultipleBlock111
+;soundrec.c,489 :: 		}
+L_readMultipleBlock113:
+;soundrec.c,490 :: 		spiReadData = spiRead();
 	MOVLW       255
 	MOVWF       FARG_SPI1_Read_buffer+0 
 	CALL        _SPI1_Read+0, 0
 	MOVF        R0, 0 
 	MOVWF       _spiReadData+0 
-;soundrec.c,483 :: 		count++;
+;soundrec.c,491 :: 		count++;
 	MOVF        _count+0, 0 
 	ADDLW       1
 	MOVWF       R0 
 	MOVF        R0, 0 
 	MOVWF       _count+0 
-;soundrec.c,485 :: 		while (count < 10);
+;soundrec.c,493 :: 		while (count < 10);
 	MOVLW       10
 	SUBWF       _count+0, 0 
 	BTFSS       STATUS+0, 0 
-	GOTO        L_readMultipleBlock109
-L_readMultipleBlock110:
-;soundrec.c,487 :: 		do
-L_readMultipleBlock113:
-;soundrec.c,489 :: 		spiReadData = spiRead();
+	GOTO        L_readMultipleBlock110
+L_readMultipleBlock111:
+;soundrec.c,495 :: 		do
+L_readMultipleBlock114:
+;soundrec.c,497 :: 		spiReadData = spiRead();
 	MOVLW       255
 	MOVWF       FARG_SPI1_Read_buffer+0 
 	CALL        _SPI1_Read+0, 0
 	MOVF        R0, 0 
 	MOVWF       _spiReadData+0 
-;soundrec.c,491 :: 		while (spiReadData != 0xff);
+;soundrec.c,499 :: 		while (spiReadData != 0xff);
 	MOVF        _spiReadData+0, 0 
 	XORLW       255
 	BTFSS       STATUS+0, 2 
-	GOTO        L_readMultipleBlock113
-;soundrec.c,492 :: 		UWR("Card free!");
+	GOTO        L_readMultipleBlock114
+;soundrec.c,500 :: 		UWR("Card free!");
 	MOVLW       ?lstr30_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr30_soundrec+0)
@@ -1778,43 +1826,43 @@ L_readMultipleBlock113:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,493 :: 		while (1); // Trap the CPU
-L_readMultipleBlock116:
-	GOTO        L_readMultipleBlock116
-;soundrec.c,494 :: 		}
+;soundrec.c,501 :: 		while (1); // Trap the CPU
+L_readMultipleBlock117:
+	GOTO        L_readMultipleBlock117
+;soundrec.c,502 :: 		}
 L_end_readMultipleBlock:
 	RETURN      0
 ; end of _readMultipleBlock
 
 _hamghi:
 
-;soundrec.c,498 :: 		void hamghi(void)
-;soundrec.c,502 :: 		for(i=0; i<512; i++)
+;soundrec.c,506 :: 		void hamghi(void)
+;soundrec.c,510 :: 		for(i=0; i<512; i++)
 	CLRF        hamghi_i_L0+0 
 	CLRF        hamghi_i_L0+1 
-L_hamghi118:
+L_hamghi119:
 	MOVLW       2
 	SUBWF       hamghi_i_L0+1, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__hamghi181
+	GOTO        L__hamghi183
 	MOVLW       0
 	SUBWF       hamghi_i_L0+0, 0 
-L__hamghi181:
+L__hamghi183:
 	BTFSC       STATUS+0, 0 
-	GOTO        L_hamghi119
-;soundrec.c,504 :: 		TP0 = 1;
+	GOTO        L_hamghi120
+;soundrec.c,512 :: 		TP0 = 1;
 	BSF         LATC0_bit+0, BitPos(LATC0_bit+0) 
-;soundrec.c,505 :: 		Delay_us(15);
+;soundrec.c,513 :: 		Delay_us(15);
 	MOVLW       24
 	MOVWF       R13, 0
-L_hamghi121:
+L_hamghi122:
 	DECFSZ      R13, 1, 1
-	BRA         L_hamghi121
+	BRA         L_hamghi122
 	NOP
 	NOP
-;soundrec.c,506 :: 		TP0 = 0;
+;soundrec.c,514 :: 		TP0 = 0;
 	BCF         LATC0_bit+0, BitPos(LATC0_bit+0) 
-;soundrec.c,507 :: 		a[i] =  adcRead();
+;soundrec.c,515 :: 		a[i] =  adcRead();
 	MOVLW       hamghi_a_L0+0
 	ADDWF       hamghi_i_L0+0, 0 
 	MOVWF       FLOC__hamghi+0 
@@ -1826,13 +1874,13 @@ L_hamghi121:
 	MOVFF       FLOC__hamghi+1, FSR1H
 	MOVF        R0, 0 
 	MOVWF       POSTINC1+0 
-;soundrec.c,502 :: 		for(i=0; i<512; i++)
+;soundrec.c,510 :: 		for(i=0; i<512; i++)
 	INFSNZ      hamghi_i_L0+0, 1 
 	INCF        hamghi_i_L0+1, 1 
-;soundrec.c,510 :: 		}
-	GOTO        L_hamghi118
-L_hamghi119:
-;soundrec.c,512 :: 		error = MMC_Write_Sector(t, a);
+;soundrec.c,518 :: 		}
+	GOTO        L_hamghi119
+L_hamghi120:
+;soundrec.c,520 :: 		error = MMC_Write_Sector(t, a);
 	MOVF        _t+0, 0 
 	MOVWF       FARG_Mmc_Write_Sector_sector+0 
 	MOVF        _t+1, 0 
@@ -1847,12 +1895,12 @@ L_hamghi119:
 	CALL        _Mmc_Write_Sector+0, 0
 	MOVF        R0, 0 
 	MOVWF       _error+0 
-;soundrec.c,513 :: 		if (error == 1)
+;soundrec.c,521 :: 		if (error == 1)
 	MOVF        _error+0, 0 
 	XORLW       1
 	BTFSS       STATUS+0, 2 
-	GOTO        L_hamghi122
-;soundrec.c,515 :: 		UWR("Command error!");
+	GOTO        L_hamghi123
+;soundrec.c,523 :: 		UWR("Command error!");
 	MOVLW       ?lstr31_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr31_soundrec+0)
@@ -1864,15 +1912,15 @@ L_hamghi119:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,516 :: 		}
-	GOTO        L_hamghi123
-L_hamghi122:
-;soundrec.c,517 :: 		else if (error == 2)
+;soundrec.c,524 :: 		}
+	GOTO        L_hamghi124
+L_hamghi123:
+;soundrec.c,525 :: 		else if (error == 2)
 	MOVF        _error+0, 0 
 	XORLW       2
 	BTFSS       STATUS+0, 2 
-	GOTO        L_hamghi124
-;soundrec.c,519 :: 		UWR("Write error!");
+	GOTO        L_hamghi125
+;soundrec.c,527 :: 		UWR("Write error!");
 	MOVLW       ?lstr32_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr32_soundrec+0)
@@ -1884,10 +1932,10 @@ L_hamghi122:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,520 :: 		}
+;soundrec.c,528 :: 		}
+L_hamghi125:
 L_hamghi124:
-L_hamghi123:
-;soundrec.c,521 :: 		t++;
+;soundrec.c,529 :: 		t++;
 	MOVLW       1
 	ADDWF       _t+0, 0 
 	MOVWF       R0 
@@ -1898,15 +1946,15 @@ L_hamghi123:
 	MOVWF       _t+0 
 	MOVF        R1, 0 
 	MOVWF       _t+1 
-;soundrec.c,522 :: 		}
+;soundrec.c,530 :: 		}
 L_end_hamghi:
 	RETURN      0
 ; end of _hamghi
 
 _hamdoc:
 
-;soundrec.c,525 :: 		void hamdoc()
-;soundrec.c,530 :: 		if (Mmc_Read_Sector(t, a))
+;soundrec.c,533 :: 		void hamdoc()
+;soundrec.c,538 :: 		if (Mmc_Read_Sector(t, a))
 	MOVF        _t+0, 0 
 	MOVWF       FARG_Mmc_Read_Sector_sector+0 
 	MOVF        _t+1, 0 
@@ -1921,8 +1969,8 @@ _hamdoc:
 	CALL        _Mmc_Read_Sector+0, 0
 	MOVF        R0, 1 
 	BTFSC       STATUS+0, 2 
-	GOTO        L_hamdoc125
-;soundrec.c,532 :: 		UWR("Read error!");
+	GOTO        L_hamdoc126
+;soundrec.c,540 :: 		UWR("Read error!");
 	MOVLW       ?lstr33_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr33_soundrec+0)
@@ -1934,22 +1982,22 @@ _hamdoc:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,533 :: 		}
-L_hamdoc125:
-;soundrec.c,534 :: 		for(i=0; i< 512; i++)
+;soundrec.c,541 :: 		}
+L_hamdoc126:
+;soundrec.c,542 :: 		for(i=0; i< 512; i++)
 	CLRF        hamdoc_i_L0+0 
 	CLRF        hamdoc_i_L0+1 
-L_hamdoc126:
+L_hamdoc127:
 	MOVLW       2
 	SUBWF       hamdoc_i_L0+1, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__hamdoc183
+	GOTO        L__hamdoc185
 	MOVLW       0
 	SUBWF       hamdoc_i_L0+0, 0 
-L__hamdoc183:
+L__hamdoc185:
 	BTFSC       STATUS+0, 0 
-	GOTO        L_hamdoc127
-;soundrec.c,536 :: 		DACOUT = a[i];
+	GOTO        L_hamdoc128
+;soundrec.c,544 :: 		DACOUT = a[i];
 	MOVLW       hamdoc_a_L0+0
 	ADDWF       hamdoc_i_L0+0, 0 
 	MOVWF       FSR0 
@@ -1958,20 +2006,20 @@ L__hamdoc183:
 	MOVWF       FSR0H 
 	MOVF        POSTINC0+0, 0 
 	MOVWF       LATB+0 
-;soundrec.c,538 :: 		Delay_us(25);
+;soundrec.c,546 :: 		Delay_us(25);
 	MOVLW       41
 	MOVWF       R13, 0
-L_hamdoc129:
+L_hamdoc130:
 	DECFSZ      R13, 1, 1
-	BRA         L_hamdoc129
+	BRA         L_hamdoc130
 	NOP
-;soundrec.c,534 :: 		for(i=0; i< 512; i++)
+;soundrec.c,542 :: 		for(i=0; i< 512; i++)
 	INFSNZ      hamdoc_i_L0+0, 1 
 	INCF        hamdoc_i_L0+1, 1 
-;soundrec.c,539 :: 		}
-	GOTO        L_hamdoc126
-L_hamdoc127:
-;soundrec.c,540 :: 		t++;
+;soundrec.c,547 :: 		}
+	GOTO        L_hamdoc127
+L_hamdoc128:
+;soundrec.c,548 :: 		t++;
 	MOVLW       1
 	ADDWF       _t+0, 0 
 	MOVWF       R0 
@@ -1982,43 +2030,43 @@ L_hamdoc127:
 	MOVWF       _t+0 
 	MOVF        R1, 0 
 	MOVWF       _t+1 
-;soundrec.c,541 :: 		}
+;soundrec.c,549 :: 		}
 L_end_hamdoc:
 	RETURN      0
 ; end of _hamdoc
 
 _hamcaidat:
 
-;soundrec.c,543 :: 		unsigned int hamcaidat()
-;soundrec.c,545 :: 		Lcd_Cmd(_LCD_CLEAR);
+;soundrec.c,551 :: 		unsigned int hamcaidat()
+;soundrec.c,553 :: 		Lcd_Cmd(_LCD_CLEAR);
 	MOVLW       1
 	MOVWF       FARG_Lcd_Cmd_out_char+0 
 	CALL        _Lcd_Cmd+0, 0
-;soundrec.c,546 :: 		Lcd_Cmd(_LCD_CURSOR_OFF);
+;soundrec.c,554 :: 		Lcd_Cmd(_LCD_CURSOR_OFF);
 	MOVLW       12
 	MOVWF       FARG_Lcd_Cmd_out_char+0 
 	CALL        _Lcd_Cmd+0, 0
-;soundrec.c,547 :: 		while (1)
-L_hamcaidat130:
-;soundrec.c,549 :: 		if(SLCT==0)
+;soundrec.c,555 :: 		while (1)
+L_hamcaidat131:
+;soundrec.c,557 :: 		if(SLCT==0)
 	BTFSC       RD2_bit+0, BitPos(RD2_bit+0) 
-	GOTO        L_hamcaidat132
-;soundrec.c,551 :: 		Delay_ms(500);
+	GOTO        L_hamcaidat133
+;soundrec.c,559 :: 		Delay_ms(500);
 	MOVLW       13
 	MOVWF       R11, 0
 	MOVLW       175
 	MOVWF       R12, 0
 	MOVLW       182
 	MOVWF       R13, 0
-L_hamcaidat133:
+L_hamcaidat134:
 	DECFSZ      R13, 1, 1
-	BRA         L_hamcaidat133
+	BRA         L_hamcaidat134
 	DECFSZ      R12, 1, 1
-	BRA         L_hamcaidat133
+	BRA         L_hamcaidat134
 	DECFSZ      R11, 1, 1
-	BRA         L_hamcaidat133
+	BRA         L_hamcaidat134
 	NOP
-;soundrec.c,552 :: 		mode++;
+;soundrec.c,560 :: 		mode++;
 	MOVLW       1
 	ADDWF       _mode+0, 0 
 	MOVWF       R0 
@@ -2029,58 +2077,36 @@ L_hamcaidat133:
 	MOVWF       _mode+0 
 	MOVF        R1, 0 
 	MOVWF       _mode+1 
-;soundrec.c,553 :: 		if(mode==3)mode=1;
-	MOVLW       0
-	XORWF       _mode+1, 0 
-	BTFSS       STATUS+0, 2 
-	GOTO        L__hamcaidat185
-	MOVLW       3
-	XORWF       _mode+0, 0 
-L__hamcaidat185:
-	BTFSS       STATUS+0, 2 
-	GOTO        L_hamcaidat134
-	MOVLW       1
-	MOVWF       _mode+0 
-	MOVLW       0
-	MOVWF       _mode+1 
-L_hamcaidat134:
-;soundrec.c,555 :: 		}
-L_hamcaidat132:
-;soundrec.c,558 :: 		if (mode == 1) UWR("Record");
-	MOVLW       0
-	XORWF       _mode+1, 0 
-	BTFSS       STATUS+0, 2 
-	GOTO        L__hamcaidat186
-	MOVLW       1
-	XORWF       _mode+0, 0 
-L__hamcaidat186:
-	BTFSS       STATUS+0, 2 
-	GOTO        L_hamcaidat135
-	MOVLW       ?lstr34_soundrec+0
-	MOVWF       FARG_UART_Write_Text_uart_text+0 
-	MOVLW       hi_addr(?lstr34_soundrec+0)
-	MOVWF       FARG_UART_Write_Text_uart_text+1 
-	CALL        _UART_Write_Text+0, 0
-L_hamcaidat135:
-	MOVLW       13
-	MOVWF       FARG_UART_Write__data+0 
-	CALL        _UART_Write+0, 0
-	MOVLW       10
-	MOVWF       FARG_UART_Write__data+0 
-	CALL        _UART_Write+0, 0
-;soundrec.c,559 :: 		if (mode == 2) UWR("Play");
+;soundrec.c,561 :: 		if(mode==3)mode=1;
 	MOVLW       0
 	XORWF       _mode+1, 0 
 	BTFSS       STATUS+0, 2 
 	GOTO        L__hamcaidat187
-	MOVLW       2
+	MOVLW       3
 	XORWF       _mode+0, 0 
 L__hamcaidat187:
 	BTFSS       STATUS+0, 2 
+	GOTO        L_hamcaidat135
+	MOVLW       1
+	MOVWF       _mode+0 
+	MOVLW       0
+	MOVWF       _mode+1 
+L_hamcaidat135:
+;soundrec.c,563 :: 		}
+L_hamcaidat133:
+;soundrec.c,566 :: 		if (mode == 1) UWR("Record");
+	MOVLW       0
+	XORWF       _mode+1, 0 
+	BTFSS       STATUS+0, 2 
+	GOTO        L__hamcaidat188
+	MOVLW       1
+	XORWF       _mode+0, 0 
+L__hamcaidat188:
+	BTFSS       STATUS+0, 2 
 	GOTO        L_hamcaidat136
-	MOVLW       ?lstr35_soundrec+0
+	MOVLW       ?lstr34_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
-	MOVLW       hi_addr(?lstr35_soundrec+0)
+	MOVLW       hi_addr(?lstr34_soundrec+0)
 	MOVWF       FARG_UART_Write_Text_uart_text+1 
 	CALL        _UART_Write_Text+0, 0
 L_hamcaidat136:
@@ -2090,67 +2116,89 @@ L_hamcaidat136:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,560 :: 		if(OK==0)
-	BTFSC       RD3_bit+0, BitPos(RD3_bit+0) 
+;soundrec.c,567 :: 		if (mode == 2) UWR("Play");
+	MOVLW       0
+	XORWF       _mode+1, 0 
+	BTFSS       STATUS+0, 2 
+	GOTO        L__hamcaidat189
+	MOVLW       2
+	XORWF       _mode+0, 0 
+L__hamcaidat189:
+	BTFSS       STATUS+0, 2 
 	GOTO        L_hamcaidat137
-;soundrec.c,563 :: 		return mode;
+	MOVLW       ?lstr35_soundrec+0
+	MOVWF       FARG_UART_Write_Text_uart_text+0 
+	MOVLW       hi_addr(?lstr35_soundrec+0)
+	MOVWF       FARG_UART_Write_Text_uart_text+1 
+	CALL        _UART_Write_Text+0, 0
+L_hamcaidat137:
+	MOVLW       13
+	MOVWF       FARG_UART_Write__data+0 
+	CALL        _UART_Write+0, 0
+	MOVLW       10
+	MOVWF       FARG_UART_Write__data+0 
+	CALL        _UART_Write+0, 0
+;soundrec.c,568 :: 		if(OK==0)
+	BTFSC       RD3_bit+0, BitPos(RD3_bit+0) 
+	GOTO        L_hamcaidat138
+;soundrec.c,571 :: 		return mode;
 	MOVF        _mode+0, 0 
 	MOVWF       R0 
 	MOVF        _mode+1, 0 
 	MOVWF       R1 
 	GOTO        L_end_hamcaidat
-;soundrec.c,565 :: 		}
-L_hamcaidat137:
-;soundrec.c,566 :: 		}
-	GOTO        L_hamcaidat130
-;soundrec.c,567 :: 		}
+;soundrec.c,573 :: 		}
+L_hamcaidat138:
+;soundrec.c,574 :: 		}
+	GOTO        L_hamcaidat131
+;soundrec.c,575 :: 		}
 L_end_hamcaidat:
 	RETURN      0
 ; end of _hamcaidat
 
 _main:
 
-;soundrec.c,569 :: 		void main()
-;soundrec.c,576 :: 		ADCON1 |= 0x0e; // AIN0 as analog input
+;soundrec.c,577 :: 		void main()
+;soundrec.c,584 :: 		ADCON1 |= 0x0e; // AIN0 as analog input
 	MOVLW       14
 	IORWF       ADCON1+0, 1 
-;soundrec.c,577 :: 		ADCON2 |= 0x2d; // 12 Tad and FOSC/16
+;soundrec.c,585 :: 		ADCON2 |= 0x2d; // 12 Tad and FOSC/16
 	MOVLW       45
 	IORWF       ADCON2+0, 1 
-;soundrec.c,578 :: 		ADFM_bit = 0; // Left justified
+;soundrec.c,586 :: 		ADFM_bit = 0; // Left justified
 	BCF         ADFM_bit+0, BitPos(ADFM_bit+0) 
-;soundrec.c,579 :: 		ADON_bit = 1; // Enable ADC module
+;soundrec.c,587 :: 		ADON_bit = 1; // Enable ADC module
 	BSF         ADON_bit+0, BitPos(ADON_bit+0) 
-;soundrec.c,580 :: 		Delay_ms(100);
+;soundrec.c,588 :: 		Delay_ms(100);
 	MOVLW       3
 	MOVWF       R11, 0
 	MOVLW       138
 	MOVWF       R12, 0
 	MOVLW       85
 	MOVWF       R13, 0
-L_main138:
+L_main139:
 	DECFSZ      R13, 1, 1
-	BRA         L_main138
+	BRA         L_main139
 	DECFSZ      R12, 1, 1
-	BRA         L_main138
+	BRA         L_main139
 	DECFSZ      R11, 1, 1
-	BRA         L_main138
+	BRA         L_main139
 	NOP
 	NOP
-;soundrec.c,583 :: 		TRISD=0xf3;
+;soundrec.c,591 :: 		TRISD=0xf3;
 	MOVLW       243
 	MOVWF       TRISD+0 
-;soundrec.c,584 :: 		TRISA2_bit=1;
+;soundrec.c,592 :: 		TRISA2_bit=1;
 	BSF         TRISA2_bit+0, BitPos(TRISA2_bit+0) 
-;soundrec.c,585 :: 		TRISD2_bit=1;
+;soundrec.c,593 :: 		TRISD2_bit=1;
 	BSF         TRISD2_bit+0, BitPos(TRISD2_bit+0) 
-;soundrec.c,586 :: 		TRISD3_bit=1;
+;soundrec.c,594 :: 		TRISD3_bit=1;
 	BSF         TRISD3_bit+0, BitPos(TRISD3_bit+0) 
-;soundrec.c,587 :: 		TRISB=0;
+;soundrec.c,595 :: 		TRISB=0;
 	CLRF        TRISB+0 
-;soundrec.c,588 :: 		TRISC = 0x00;
+;soundrec.c,596 :: 		TRISC = 0x00;
 	CLRF        TRISC+0 
-;soundrec.c,591 :: 		UART1_Init(9600);
+;soundrec.c,599 :: 		UART1_Init(9600);
 	BSF         BAUDCON+0, 3, 0
 	MOVLW       2
 	MOVWF       SPBRGH+0 
@@ -2158,18 +2206,18 @@ L_main138:
 	MOVWF       SPBRG+0 
 	BSF         TXSTA+0, 2, 0
 	CALL        _UART1_Init+0, 0
-;soundrec.c,592 :: 		mmcInit();
+;soundrec.c,600 :: 		mmcInit();
 	CALL        _mmcInit+0, 0
-;soundrec.c,594 :: 		for ( ; ; )        // Repeats forever
-L_main139:
-;soundrec.c,597 :: 		while (SLCT != 0)        // Wait until SELECT pressed
-L_main142:
-	BTFSS       RD2_bit+0, BitPos(RD2_bit+0) 
-	GOTO        L_main143
-;soundrec.c,599 :: 		}
-	GOTO        L_main142
+;soundrec.c,602 :: 		for ( ; ; )        // Repeats forever
+L_main140:
+;soundrec.c,605 :: 		while (SLCT != 0)        // Wait until SELECT pressed
 L_main143:
-;soundrec.c,604 :: 		UWR("Select a Menu");
+	BTFSS       RD2_bit+0, BitPos(RD2_bit+0) 
+	GOTO        L_main144
+;soundrec.c,607 :: 		}
+	GOTO        L_main143
+L_main144:
+;soundrec.c,612 :: 		UWR("Select a Menu");
 	MOVLW       ?lstr36_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr36_soundrec+0)
@@ -2181,30 +2229,30 @@ L_main143:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,605 :: 		while (OK)
-L_main144:
+;soundrec.c,613 :: 		while (OK)
+L_main145:
 	BTFSS       RD3_bit+0, BitPos(RD3_bit+0) 
-	GOTO        L_main145
-;soundrec.c,607 :: 		if (!SLCT)
-	BTFSC       RD2_bit+0, BitPos(RD2_bit+0) 
 	GOTO        L_main146
-;soundrec.c,609 :: 		Delay_ms(300);
+;soundrec.c,615 :: 		if (!SLCT)
+	BTFSC       RD2_bit+0, BitPos(RD2_bit+0) 
+	GOTO        L_main147
+;soundrec.c,617 :: 		Delay_ms(300);
 	MOVLW       8
 	MOVWF       R11, 0
 	MOVLW       157
 	MOVWF       R12, 0
 	MOVLW       5
 	MOVWF       R13, 0
-L_main147:
+L_main148:
 	DECFSZ      R13, 1, 1
-	BRA         L_main147
+	BRA         L_main148
 	DECFSZ      R12, 1, 1
-	BRA         L_main147
+	BRA         L_main148
 	DECFSZ      R11, 1, 1
-	BRA         L_main147
+	BRA         L_main148
 	NOP
 	NOP
-;soundrec.c,610 :: 		mode++;
+;soundrec.c,618 :: 		mode++;
 	MOVLW       1
 	ADDWF       _mode+0, 0 
 	MOVWF       R0 
@@ -2215,73 +2263,31 @@ L_main147:
 	MOVWF       _mode+0 
 	MOVF        R1, 0 
 	MOVWF       _mode+1 
-;soundrec.c,611 :: 		if (mode == 3)
-	MOVLW       0
-	XORWF       _mode+1, 0 
-	BTFSS       STATUS+0, 2 
-	GOTO        L__main189
-	MOVLW       3
-	XORWF       _mode+0, 0 
-L__main189:
-	BTFSS       STATUS+0, 2 
-	GOTO        L_main148
-;soundrec.c,613 :: 		mode = 1;
-	MOVLW       1
-	MOVWF       _mode+0 
-	MOVLW       0
-	MOVWF       _mode+1 
-;soundrec.c,614 :: 		}
-L_main148:
-;soundrec.c,615 :: 		}
-L_main146:
-;soundrec.c,617 :: 		if ((mode == 1) & (lastMode != mode))
-	MOVLW       0
-	XORWF       _mode+1, 0 
-	BTFSS       STATUS+0, 2 
-	GOTO        L__main190
-	MOVLW       1
-	XORWF       _mode+0, 0 
-L__main190:
-	MOVLW       1
-	BTFSS       STATUS+0, 2 
-	MOVLW       0
-	MOVWF       R1 
+;soundrec.c,619 :: 		if (mode == 3)
 	MOVLW       0
 	XORWF       _mode+1, 0 
 	BTFSS       STATUS+0, 2 
 	GOTO        L__main191
-	MOVF        _mode+0, 0 
-	XORWF       main_lastMode_L0+0, 0 
+	MOVLW       3
+	XORWF       _mode+0, 0 
 L__main191:
-	MOVLW       0
 	BTFSS       STATUS+0, 2 
-	MOVLW       1
-	MOVWF       R0 
-	MOVF        R1, 0 
-	ANDWF       R0, 1 
-	BTFSC       STATUS+0, 2 
 	GOTO        L_main149
-;soundrec.c,620 :: 		UWR("Record\n");
-	MOVLW       ?lstr37_soundrec+0
-	MOVWF       FARG_UART_Write_Text_uart_text+0 
-	MOVLW       hi_addr(?lstr37_soundrec+0)
-	MOVWF       FARG_UART_Write_Text_uart_text+1 
-	CALL        _UART_Write_Text+0, 0
-	MOVLW       13
-	MOVWF       FARG_UART_Write__data+0 
-	CALL        _UART_Write+0, 0
-	MOVLW       10
-	MOVWF       FARG_UART_Write__data+0 
-	CALL        _UART_Write+0, 0
-;soundrec.c,621 :: 		}
-	GOTO        L_main150
+;soundrec.c,621 :: 		mode = 1;
+	MOVLW       1
+	MOVWF       _mode+0 
+	MOVLW       0
+	MOVWF       _mode+1 
+;soundrec.c,622 :: 		}
 L_main149:
-;soundrec.c,622 :: 		else if ((mode == 2) & (lastMode != mode))
+;soundrec.c,623 :: 		}
+L_main147:
+;soundrec.c,625 :: 		if ((mode == 1) & (lastMode != mode))
 	MOVLW       0
 	XORWF       _mode+1, 0 
 	BTFSS       STATUS+0, 2 
 	GOTO        L__main192
-	MOVLW       2
+	MOVLW       1
 	XORWF       _mode+0, 0 
 L__main192:
 	MOVLW       1
@@ -2302,8 +2308,50 @@ L__main193:
 	MOVF        R1, 0 
 	ANDWF       R0, 1 
 	BTFSC       STATUS+0, 2 
+	GOTO        L_main150
+;soundrec.c,628 :: 		UWR("Record\n");
+	MOVLW       ?lstr37_soundrec+0
+	MOVWF       FARG_UART_Write_Text_uart_text+0 
+	MOVLW       hi_addr(?lstr37_soundrec+0)
+	MOVWF       FARG_UART_Write_Text_uart_text+1 
+	CALL        _UART_Write_Text+0, 0
+	MOVLW       13
+	MOVWF       FARG_UART_Write__data+0 
+	CALL        _UART_Write+0, 0
+	MOVLW       10
+	MOVWF       FARG_UART_Write__data+0 
+	CALL        _UART_Write+0, 0
+;soundrec.c,629 :: 		}
 	GOTO        L_main151
-;soundrec.c,625 :: 		UWR("Play\n");
+L_main150:
+;soundrec.c,630 :: 		else if ((mode == 2) & (lastMode != mode))
+	MOVLW       0
+	XORWF       _mode+1, 0 
+	BTFSS       STATUS+0, 2 
+	GOTO        L__main194
+	MOVLW       2
+	XORWF       _mode+0, 0 
+L__main194:
+	MOVLW       1
+	BTFSS       STATUS+0, 2 
+	MOVLW       0
+	MOVWF       R1 
+	MOVLW       0
+	XORWF       _mode+1, 0 
+	BTFSS       STATUS+0, 2 
+	GOTO        L__main195
+	MOVF        _mode+0, 0 
+	XORWF       main_lastMode_L0+0, 0 
+L__main195:
+	MOVLW       0
+	BTFSS       STATUS+0, 2 
+	MOVLW       1
+	MOVWF       R0 
+	MOVF        R1, 0 
+	ANDWF       R0, 1 
+	BTFSC       STATUS+0, 2 
+	GOTO        L_main152
+;soundrec.c,633 :: 		UWR("Play\n");
 	MOVLW       ?lstr38_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr38_soundrec+0)
@@ -2315,29 +2363,29 @@ L__main193:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,626 :: 		}
+;soundrec.c,634 :: 		}
+L_main152:
 L_main151:
-L_main150:
-;soundrec.c,631 :: 		lastMode = mode;
+;soundrec.c,639 :: 		lastMode = mode;
 	MOVF        _mode+0, 0 
 	MOVWF       main_lastMode_L0+0 
-;soundrec.c,632 :: 		}
-	GOTO        L_main144
-L_main145:
-;soundrec.c,636 :: 		if (mode == 1)
+;soundrec.c,640 :: 		}
+	GOTO        L_main145
+L_main146:
+;soundrec.c,644 :: 		if (mode == 1)
 	MOVLW       0
 	XORWF       _mode+1, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__main194
+	GOTO        L__main196
 	MOVLW       1
 	XORWF       _mode+0, 0 
-L__main194:
+L__main196:
 	BTFSS       STATUS+0, 2 
-	GOTO        L_main152
-;soundrec.c,638 :: 		t = 0;
+	GOTO        L_main153
+;soundrec.c,646 :: 		t = 0;
 	CLRF        _t+0 
 	CLRF        _t+1 
-;soundrec.c,639 :: 		UWR("Writing");
+;soundrec.c,647 :: 		UWR("Writing");
 	MOVLW       ?lstr39_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr39_soundrec+0)
@@ -2349,23 +2397,23 @@ L__main194:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,640 :: 		PORTB = 0x00;
+;soundrec.c,648 :: 		PORTB = 0x00;
 	CLRF        PORTB+0 
-;soundrec.c,642 :: 		writeMultipleBlock();
+;soundrec.c,650 :: 		writeMultipleBlock();
 	CALL        _writeMultipleBlock+0, 0
-;soundrec.c,643 :: 		}
-L_main152:
-;soundrec.c,645 :: 		if (mode == 2)
+;soundrec.c,651 :: 		}
+L_main153:
+;soundrec.c,653 :: 		if (mode == 2)
 	MOVLW       0
 	XORWF       _mode+1, 0 
 	BTFSS       STATUS+0, 2 
-	GOTO        L__main195
+	GOTO        L__main197
 	MOVLW       2
 	XORWF       _mode+0, 0 
-L__main195:
+L__main197:
 	BTFSS       STATUS+0, 2 
-	GOTO        L_main153
-;soundrec.c,649 :: 		UWR("Reading");
+	GOTO        L_main154
+;soundrec.c,657 :: 		UWR("Reading");
 	MOVLW       ?lstr40_soundrec+0
 	MOVWF       FARG_UART_Write_Text_uart_text+0 
 	MOVLW       hi_addr(?lstr40_soundrec+0)
@@ -2377,26 +2425,26 @@ L__main195:
 	MOVLW       10
 	MOVWF       FARG_UART_Write__data+0 
 	CALL        _UART_Write+0, 0
-;soundrec.c,650 :: 		t = 0;
+;soundrec.c,658 :: 		t = 0;
 	CLRF        _t+0 
 	CLRF        _t+1 
-;soundrec.c,652 :: 		readMultipleBlock();
+;soundrec.c,660 :: 		readMultipleBlock();
 	CALL        _readMultipleBlock+0, 0
-;soundrec.c,653 :: 		while (SLCT && OK)
-L_main154:
-	BTFSS       RD2_bit+0, BitPos(RD2_bit+0) 
-	GOTO        L_main155
-	BTFSS       RD3_bit+0, BitPos(RD3_bit+0) 
-	GOTO        L_main155
-L__main161:
-;soundrec.c,655 :: 		}
-	GOTO        L_main154
+;soundrec.c,661 :: 		while (SLCT && OK)
 L_main155:
-;soundrec.c,656 :: 		}
-L_main153:
-;soundrec.c,658 :: 		}
-	GOTO        L_main139
-;soundrec.c,659 :: 		}
+	BTFSS       RD2_bit+0, BitPos(RD2_bit+0) 
+	GOTO        L_main156
+	BTFSS       RD3_bit+0, BitPos(RD3_bit+0) 
+	GOTO        L_main156
+L__main162:
+;soundrec.c,663 :: 		}
+	GOTO        L_main155
+L_main156:
+;soundrec.c,664 :: 		}
+L_main154:
+;soundrec.c,666 :: 		}
+	GOTO        L_main140
+;soundrec.c,667 :: 		}
 L_end_main:
 	GOTO        $+0
 ; end of _main

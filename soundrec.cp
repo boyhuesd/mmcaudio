@@ -87,8 +87,8 @@ volatile unsigned char samplingRate = 1;
 volatile unsigned int mode = 0;
 volatile unsigned int t = 0;
 volatile unsigned char x;
-volatile unsigned int numberOfSectors = 0;
-volatile unsigned char error;
+volatile uint8_t error;
+volatile uint16_t numberOfSectors;
 volatile uint8_t spiReadData;
 volatile uint32_t arg = 0;
 volatile uint8_t count;
@@ -360,8 +360,7 @@ void
 writeMultipleBlock(void)
 {
  volatile uint16_t g;
- volatile uint8_t temp = 0;
- volatile uint8_t text[7];
+ volatile uint8_t text[10];
  volatile uint16_t rejected = 0;
 
  while (1)
@@ -380,6 +379,7 @@ writeMultipleBlock(void)
   SPI1_Write(0xff) ;
   SPI1_Write(0xff) ;
   SPI1_Write(0xff) ;
+ numberOfSectors = 0;
  while ( RD2_bit )
  {
   SPI1_Write(0b11111100) ;
@@ -399,21 +399,23 @@ writeMultipleBlock(void)
  spiReadData =  SPI1_Read(0xff) ;
  if ((spiReadData & 0b00011111) == 0x05)
  {
-  UART_Write_Text("Data accepted!"); UART_Write(13); UART_Write(10); ;
+
+ numberOfSectors++;
  break;
  }
  count++;
  }
  if (count >= 8)
  {
-  UART_Write_Text("Data rejected!"); UART_Write(13); UART_Write(10); ;
+
  rejected++;
  }
- spiReadData =  SPI1_Read(0xff) ;
- while (spiReadData != 0xff)
+
+ do
  {
  spiReadData =  SPI1_Read(0xff) ;
  }
+ while (spiReadData != 0xff);
  }
 
 
@@ -424,8 +426,12 @@ writeMultipleBlock(void)
  {
  spiReadData =  SPI1_Read(0xff) ;
  }
-  UART_Write_Text("DONE Writing!"); UART_Write(13); UART_Write(10); 
+  UART_Write_Text("STOPPED!"); UART_Write(13); UART_Write(10); 
+ IntToStr(numberOfSectors, text);
+  UART_Write_Text("Written:"); UART_Write(13); UART_Write(10); 
+  UART_Write_Text(text); UART_Write(13); UART_Write(10); ;
  IntToStr(rejected, text);
+  UART_Write_Text("Lost: "); UART_Write(13); UART_Write(10); ;
   UART_Write_Text(text); UART_Write(13); UART_Write(10); ;
 }
 
@@ -435,6 +441,7 @@ readMultipleBlock(void)
 {
  volatile uint16_t g;
  volatile uint8_t text[7];
+ volatile uint16_t sectorIndex = 0;
 
  do
  {
@@ -460,7 +467,7 @@ readMultipleBlock(void)
   UART_Write_Text("Command Rejected!"); UART_Write(13); UART_Write(10); ;
  while (1);
  }
- while ( RD2_bit )
+ while (sectorIndex < numberOfSectors)
  {
 
  do
@@ -479,6 +486,7 @@ readMultipleBlock(void)
 
  spiReadData =  SPI1_Read(0xff) ;
  spiReadData =  SPI1_Read(0xff) ;
+ sectorIndex++;
  }
 
 

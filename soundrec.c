@@ -67,8 +67,8 @@ volatile unsigned char samplingRate = 1;
 volatile unsigned int mode = 0;
 volatile unsigned int t = 0;
 volatile unsigned char x;
-volatile unsigned int numberOfSectors = 0;
-volatile unsigned char error;
+volatile uint8_t error;
+volatile uint16_t numberOfSectors;
 volatile uint8_t spiReadData;
 volatile uint32_t arg = 0;
 volatile uint8_t count;
@@ -348,8 +348,7 @@ void
 writeMultipleBlock(void)
 {
 	volatile uint16_t g;
-	volatile uint8_t temp = 0;
-	volatile uint8_t text[7];
+	volatile uint8_t text[10];
 	volatile uint16_t rejected = 0;
 	
 	while (1)
@@ -368,6 +367,7 @@ writeMultipleBlock(void)
 	spiWrite(0xff);
 	spiWrite(0xff);
 	spiWrite(0xff); // Dummy clock
+	numberOfSectors = 0; // Initialize the number of sector will be recorded
 	while (SLCT) // repeat until Select button pressed
 	{
 		spiWrite(0b11111100); // Data token for CMD 25
@@ -387,21 +387,23 @@ writeMultipleBlock(void)
 			spiReadData = spiRead();
 			if ((spiReadData & 0b00011111) == 0x05)
 			{
-				UWR("Data accepted!");
+				//UWR("Data accepted!");
+				numberOfSectors++;
 				break;
 			}
 			count++;
 		}
 		if (count >= 8)
 		{
-			UWR("Data rejected!");
+			//UWR("Data rejected!");
 			rejected++;
 		} 
-		spiReadData = spiRead(); // check if the card is busy
-		while (spiReadData != 0xff)
+		
+		do // check if the card is busy
 		{
 			spiReadData = spiRead();
 		}
+		while (spiReadData != 0xff);
 	}
 	// if the SLCT button is pressed
 	// write the stop transfer token
@@ -412,8 +414,12 @@ writeMultipleBlock(void)
 	{
 		spiReadData = spiRead();
 	}
-	UWR("DONE Writing!")
+	UWR("STOPPED!")
+	IntToStr(numberOfSectors, text);
+	UWR("Written:")
+	UWR(text);
 	IntToStr(rejected, text);
+	UWR("Lost: ");
 	UWR(text); // Print out number of recjected sector
 }
 
@@ -423,6 +429,7 @@ readMultipleBlock(void)
 {
 	volatile uint16_t g;
 	volatile uint8_t text[7];
+	volatile uint16_t sectorIndex = 0;
 	// 1. Make sure the card is not busy
 	do 
 	{
@@ -448,7 +455,7 @@ readMultipleBlock(void)
 		UWR("Command Rejected!");
 		while (1); // Trap the CPU
 	}
-	while (SLCT) // play until SLCT button pressed
+	while (sectorIndex < numberOfSectors)
 	{
 		// 3. Read until received data token
 		do 
@@ -467,6 +474,7 @@ readMultipleBlock(void)
 		// 5. Read 2 bytes CRC
 		spiReadData = spiRead();
 		spiReadData = spiRead();
+		sectorIndex++;
 	}
 	// STOP TRANSMISSION
 	// 6. Send stop transmission command

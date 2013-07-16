@@ -111,7 +111,7 @@ adcRead(void)
 {
 
  GO_bit = 1;
- while (!GO);
+ while (GO_bit);
 
  return ADRESH;
 }
@@ -382,8 +382,10 @@ writeMultipleBlock(void)
  for (g = 0; g < 512; g++)
  {
 
+
   SPI1_Write(adcRead()) ;
- Delay_us(15);
+
+
 
 
 
@@ -397,7 +399,8 @@ writeMultipleBlock(void)
  spiReadData =  SPI1_Read(0xff) ;
  if ((spiReadData & 0b00011111) == 0x05)
  {
-  UART_Write_Text("Data accepted!"); UART_Write(13); UART_Write(10); ;
+
+
  numberOfSectors++;
  break;
  }
@@ -529,7 +532,7 @@ void main()
 
 
  UART1_Init(9600);
-#line 534 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 537 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
  while (1)
@@ -546,7 +549,7 @@ void main()
  while (1);
  }
  }
-#line 551 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 554 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
  for ( ; ; )
@@ -596,6 +599,25 @@ void main()
  t = 0;
   UART_Write_Text("Writing"); UART_Write(13); UART_Write(10); ;
  PORTB = 0x00;
+#line 606 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+ SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+
+ while (1)
+ {
+ if (mmcInit() == 0)
+ {
+  UART_Write_Text("Card detected!"); UART_Write(13); UART_Write(10); ;
+ break;
+ }
+ initRetry++;
+ if (initRetry == 50)
+ {
+  UART_Write_Text("Card error, CPU trapped!"); UART_Write(13); UART_Write(10); ;
+ while (1);
+ }
+ }
+#line 623 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+ SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
  if (writeMultipleBlock())
  {

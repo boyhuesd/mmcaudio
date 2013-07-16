@@ -99,7 +99,7 @@ adcRead(void)
 {
 	//TP0 = 1;
 	GO_bit = 1; // Begin conversion
-	while (!GO); // Wait for conversion completed
+	while (GO_bit); // Wait for conversion completed
 	//TP0 = 0;
 	return ADRESH;
 }
@@ -382,8 +382,10 @@ Returns:
 			for (g = 0; g < 512; g++)
 			{
 				//spiWrite((uint8_t) g);
+				//TP0 = 1;
 				spiWrite(adcRead());
-				Delay_us(15);
+				//TP0 = 0;
+				//Delay_us(15);
 				// IntToStr(g, text);
 				// UWR(text);
 				// Delay_ms(2);
@@ -397,7 +399,8 @@ Returns:
 				spiReadData = spiRead();
 				if ((spiReadData & 0b00011111) == 0x05)
 				{
-					UWR("Data accepted!");
+					//UWR("Data accepted!");
+					//Delay_us(5);
 					numberOfSectors++;
 					break;
 				}
@@ -408,6 +411,11 @@ Returns:
 				UWR("Data rejected!");
 				rejected++;
 			} 
+			
+			if (rejected > 10)
+			{
+				
+			}
 			
 			do // check if the card is busy
 			{
@@ -460,7 +468,7 @@ readMultipleBlock(void)
 		UWR("Command Rejected!");
 		while (1); // Trap the CPU
 	}
-	while (sectorIndex < 20)
+	while (sectorIndex < 10)
 	{
 		// 3. Read until received data token
 		do 
@@ -598,6 +606,27 @@ void main()
 			UWR("Writing");
 			PORTB = 0x00;
 			//writeSingleBlock();
+			// SPI Initialization
+			SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
+			_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+			// MMC/SD Initialization
+			while (1)
+			{
+				if (mmcInit() == 0)
+				{	
+					UWR("Card detected!");
+					break;
+				}
+				initRetry++;
+				if (initRetry == 50)
+				{
+					UWR("Card error, CPU trapped!");
+					while (1); // Trap the CPU
+				}
+			}
+			SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
+			_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+			
 			if (writeMultipleBlock())
 			{
 				UWR("Write error!");

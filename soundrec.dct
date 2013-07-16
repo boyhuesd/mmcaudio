@@ -663,9 +663,6 @@ gieh_bit
 giel
 giel_bit
 halfbits
-hamcaidat
-hamdoc
-hamghi
 hlvdcon
 hlvden
 hlvden_bit
@@ -1355,6 +1352,7 @@ re3
 re3_bit
 readmultipleblock
 readsingleblock
+rejected
 res032
 ri
 ri_bit

@@ -1,13 +1,8 @@
 main
 	__CC2DW
 	UART1_Init
+	SPI1_Init_Advanced
 	mmcInit
-		SPI1_Init_Advanced
-		UART_Write_Text
-			UART_Write
-				____DoIFC
-		UART_Write
-			____DoIFC
 		SPI1_Write
 		command
 			SPI1_Write
@@ -22,21 +17,17 @@ main
 		sendCMD
 			SPI1_Write
 			SPI1_Read
-			UART_Write_Text
-				UART_Write
-					____DoIFC
-			UART_Write
-				____DoIFC
+		SPI1_Write
+		adcRead
+		SPI1_Read
 		UART_Write_Text
 			UART_Write
 				____DoIFC
 		UART_Write
 			____DoIFC
-		SPI1_Write
-		IntToStr
-			WordToStr
-				Div_16x16_U
-		SPI1_Read
+	IntToStr
+		WordToStr
+			Div_16x16_U
 	readMultipleBlock
 		SPI1_Read
 		command

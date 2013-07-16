@@ -11,6 +11,9 @@ git commit -m "User comment"
 git push -u origin master // push from local to server
 git pull // pull from server to local
 git commit -a -m "..." // commit all
+// drop local changes and commits, fetch the latest history from the server
+git fetch origin
+git reset --hard origin/master
 ******************************************************************************/
 #include <stdint.h>
 
@@ -24,6 +27,11 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 
 #define spiWrite(x) SPI1_Write(x)
 #define spiRead() SPI1_Read(0xff)
+
+// Error definition
+#define initERROR_CMD0 1
+#define initERROR_CMD1 2
+#define initERROR_CMD16 3
 
 sbit LCD_RS at LATD0_bit;
 sbit LCD_EN at LATD1_bit;
@@ -72,6 +80,7 @@ volatile uint16_t numberOfSectors;
 volatile uint8_t spiReadData;
 volatile uint32_t arg = 0;
 volatile uint8_t count;
+volatile uint16_t rejected = 0;
 
 char* codeToRam(const char* ctxt)
 {
@@ -90,7 +99,7 @@ adcRead(void)
 {
 	//TP0 = 1;
 	GO_bit = 1; // Begin conversion
-	while (GO); // Wait for conversion completed
+	while (!GO); // Wait for conversion completed
 	//TP0 = 0;
 	return ADRESH;
 }
@@ -132,25 +141,21 @@ command(char command, uint32_t fourbyte_arg, char CRCbits)
 	spiReadData = spiRead();
 }
 
-void
+uint8_t 
 mmcInit(void)
 {
 	uint8_t u;
-	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
-	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+	volatile uint8_t error = 0;
+	
 	Delay_ms(2);
 	Mmc_Chip_Select = 1;
-	UWR("CS is HIGH!");
 	for (u = 0; u < 10; u++)
 	{
 		spiWrite(0xff);
 	}
-	UWR("Dummy clock sent!");
 	Mmc_Chip_Select = 0;
-	UWR("CS is LOW!\n");
 	Delay_ms(1);
 	command(0, 0, 0x95);
-	UWR("CMD0 sent!");
 	count = 0;
 	while ((spiReadData != 1) && (count < 10))
 	{
@@ -159,8 +164,7 @@ mmcInit(void)
 	}
 	if (count >= 10)
 	{
-		UWR("CARD ERROR - CMD0");
-		while (1); // Trap the CPU
+		error = initERROR_CMD0;
 	}
 	command(1, 0, 0xff);
 	count = 0;
@@ -172,8 +176,7 @@ mmcInit(void)
 	}
 	if (count >= 1000)
 	{
-		UWR("Card ERROR - CMD1");
-		while (1); // Trap the CPU
+		error = initERROR_CMD1;
 	}
 	command(16, 512, 0xff);
 	count = 0;
@@ -184,15 +187,9 @@ mmcInit(void)
 	}
 	if (count >= 1000)
 	{
-		UWR("Card error - CMD16");
-		while (1); // Trap the CPU
+		error = initERROR_CMD16;
 	}
-	UWR("MMC Detected!");
-	// change spi clock rate to achive maximum speed
-	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV16, _SPI_DATA_SAMPLE_MIDDLE,\
-	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
-	Delay_ms(20);
-	
+	return error;
 }
 
 void
@@ -313,7 +310,7 @@ sendCMD(uint8_t cmd, uint32_t arg)
 		spiReadData = spiRead();
 	}
 	while (spiReadData != 0xff);
-	UWR("Card free!");
+	//UWR("Card free!");
 	
 	// Send the CMD
 	spiWrite(0b01000000 | cmd);
@@ -344,83 +341,91 @@ sendCMD(uint8_t cmd, uint32_t arg)
 	}
 }
 
-void
+uint8_t
 writeMultipleBlock(void)
+/******************************************************************************
+Write multiple block of data to the MMC/SD.
+Returns:
+	0 if successful.
+	1 write error.
+******************************************************************************/
 {
 	volatile uint16_t g;
-	volatile uint8_t text[10];
-	volatile uint16_t rejected = 0;
+	volatile uint8_t retry;
+	volatile uint8_t error;
 	
-	while (1)
+	do 
 	{
-		if (sendCMD(25, 0))
+		if (!(sendCMD(25, 0))) // write command accepted
 		{
-			UWR("Command rejected!");
-			Delay_ms(10);
+			error = 0;
+			break;
 		}
 		else
 		{
-			break;
+			error = 1;
+			retry++;
 		}
 	}
-	UWR("Command accepted!");
-	spiWrite(0xff);
-	spiWrite(0xff);
-	spiWrite(0xff); // Dummy clock
-	numberOfSectors = 0; // Initialize the number of sector will be recorded
-	while (SLCT) // repeat until Select button pressed
+	while (retry < 50);
+	
+	if (!error)
 	{
-		spiWrite(0b11111100); // Data token for CMD 25
-		for (g = 0; g < 512; g++)
-		{
-			spiWrite((uint8_t) g);
-			IntToStr(g, text);
-			UWR(text);
-			Delay_ms(2);
-		} // write a block of 512 bytes data
 		spiWrite(0xff);
-		spiWrite(0xff); // 2 bytes CRC
-		// check if the data is accepted
-		count = 0;
-		while (count < 8)
+		spiWrite(0xff);
+		spiWrite(0xff); // Dummy clock
+		numberOfSectors = 0; // Initialize the number of sector
+		rejected = 0;
+		while (SLCT) // repeat until Select button pressed
 		{
-			spiReadData = spiRead();
-			if ((spiReadData & 0b00011111) == 0x05)
+			spiWrite(0b11111100); // Data token for CMD 25
+			for (g = 0; g < 512; g++)
 			{
-				//UWR("Data accepted!");
-				numberOfSectors++;
-				break;
+				//spiWrite((uint8_t) g);
+				spiWrite(adcRead());
+				Delay_us(15);
+				// IntToStr(g, text);
+				// UWR(text);
+				// Delay_ms(2);
+			} // write a block of 512 bytes data
+			spiWrite(0xff);
+			spiWrite(0xff); // 2 bytes CRC
+			// check if the data is accepted
+			count = 0;
+			while (count < 30)
+			{
+				spiReadData = spiRead();
+				if ((spiReadData & 0b00011111) == 0x05)
+				{
+					UWR("Data accepted!");
+					numberOfSectors++;
+					break;
+				}
+				count++;
 			}
-			count++;
+			if (count >= 30)
+			{
+				UWR("Data rejected!");
+				rejected++;
+			} 
+			
+			do // check if the card is busy
+			{
+				spiReadData = spiRead();
+			}
+			while (spiReadData != 0xff);
 		}
-		if (count >= 8)
-		{
-			//UWR("Data rejected!");
-			rejected++;
-		} 
-		
-		do // check if the card is busy
+		// if the SLCT button is pressed
+		// write the stop transfer token
+		spiWrite(0b11111101); 
+		spiWrite(0xff);
+		spiReadData = spiRead();
+		while (spiReadData != 0xff) // check if the card is busy
 		{
 			spiReadData = spiRead();
 		}
-		while (spiReadData != 0xff);
 	}
-	// if the SLCT button is pressed
-	// write the stop transfer token
-	spiWrite(0b11111101); 
-	spiWrite(0xff);
-	spiReadData = spiRead();
-	while (spiReadData != 0xff) // check if the card is busy
-	{
-		spiReadData = spiRead();
-	}
-	UWR("STOPPED!")
-	IntToStr(numberOfSectors, text);
-	UWR("Written:")
-	UWR(text);
-	IntToStr(rejected, text);
-	UWR("Lost: ");
-	UWR(text); // Print out number of recjected sector
+	return error;
 }
 
 
@@ -455,7 +460,7 @@ readMultipleBlock(void)
 		UWR("Command Rejected!");
 		while (1); // Trap the CPU
 	}
-	while (sectorIndex < numberOfSectors)
+	while (sectorIndex < 20)
 	{
 		// 3. Read until received data token
 		do 
@@ -474,6 +479,7 @@ readMultipleBlock(void)
 		// 5. Read 2 bytes CRC
 		spiReadData = spiRead();
 		spiReadData = spiRead();
+		sectorIndex++;
 	}
 	// STOP TRANSMISSION
 	// 6. Send stop transmission command
@@ -497,87 +503,14 @@ readMultipleBlock(void)
 	}
 	while (spiReadData != 0xff);
 	UWR("Card free!");
-	while (1); // Trap the CPU
-}
-
-//// ham ghi du lieu
-/* TODO:: Need to write MMC Write error handling */
-void hamghi(void)
-{
-	unsigned int i;
-	char a[512];
-	for(i=0; i<512; i++)
-	{
-		TP0 = 1;
-		Delay_us(15);
-		TP0 = 0;
-		a[i] =  adcRead();
-		//a[i] = i;  // !TESTING 
-		//writeDelay(samplingRate);  // Sampling delay
-	}
-	//MMC_Write_Sector(t, a);
-	error = MMC_Write_Sector(t, a);
-	if (error == 1)
-	{
-		UWR("Command error!");
-	}
-	else if (error == 2)
-	{
-		UWR("Write error!");
-	}
-	t++;
-}
-
-/// ham doc du lieu tu sector
-void hamdoc()
-{
-	unsigned int i;
-	char a[512];
-	char txt[7];
-	if (Mmc_Read_Sector(t, a)) 
-	{
-		UWR("Read error!");
-	}
-	for(i=0; i< 512; i++)
-	{
-		DACOUT = a[i];
-		//readDelay(samplingRate);
-		Delay_us(25);
-	}
-	t++;
-}
-
-unsigned int hamcaidat()
-{
-	Lcd_Cmd(_LCD_CLEAR);
-	Lcd_Cmd(_LCD_CURSOR_OFF);
-	while (1)
-	{
-		if(SLCT==0)
-		{
-			Delay_ms(500);
-			mode++;
-			if(mode==3)mode=1;
-
-		}
-		// if(mode==1)Lcd_Out(1,6, codeToRam(infWrt));
-		// if(mode==2)Lcd_Out(1,6,codeToRam(infRd));
-		if (mode == 1) UWR("Record");
-		if (mode == 2) UWR("Play");
-		if(OK==0)
-		{
-			//Lcd_Out(1,6,"SETUP OK");
-			return mode;
-			break;
-		}
-	}
 }
 
 void main()
 {
 	unsigned char select;
 	unsigned char lastMode;
-	char strNumOfSec[7];
+	volatile uint8_t initRetry = 0;
+	volatile uint8_t text[10];
 
 	// adcInit();
 	ADCON1 |= 0x0e; // AIN0 as analog input
@@ -596,7 +529,26 @@ void main()
 
 	//Lcd_Init();
 	UART1_Init(9600);
-	mmcInit();
+	// SPI Initialization
+	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
+	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+	// MMC/SD Initialization
+	while (1)
+	{
+		if (mmcInit() == 0)
+		{	
+			UWR("Card detected!");
+			break;
+		}
+		initRetry++;
+		if (initRetry == 50)
+		{
+			UWR("Card error, CPU trapped!");
+			while (1); // Trap the CPU
+		}
+	}
+	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
+	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
 	for ( ; ; )        // Repeats forever
 	{
@@ -646,7 +598,20 @@ void main()
 			UWR("Writing");
 			PORTB = 0x00;
 			//writeSingleBlock();
-			writeMultipleBlock();
+			if (writeMultipleBlock())
+			{
+				UWR("Write error!");
+			}
+			else
+			{
+				UWR("STOPPED!")
+				IntToStr(numberOfSectors, text);
+				UWR("Written:")
+				UWR(text);
+				IntToStr(rejected, text);
+				UWR("Lost: ");
+				UWR(text); // Print out number of recjected sector
+			}
 		}
 
 		if (mode == 2)

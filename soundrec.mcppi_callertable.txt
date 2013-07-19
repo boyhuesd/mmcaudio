@@ -38,6 +38,3 @@ main
 				____DoIFC
 		UART_Write
 			____DoIFC
-		IntToStr
-			WordToStr
-				Div_16x16_U

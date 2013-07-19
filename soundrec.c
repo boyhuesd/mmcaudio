@@ -462,7 +462,7 @@ readMultipleBlock(void)
 		UWR("Command Rejected!");
 		while (1); // Trap the CPU
 	}
-	while (sectorIndex < 10)
+	while (SLCT)
 	{
 		// 3. Read until received data token
 		do 
@@ -473,10 +473,12 @@ readMultipleBlock(void)
 		// 4. Read 512 bytes of data
 		for (g = 0; g < 512; g++)
 		{
-			spiReadData = spiRead();
-			IntToStr(spiReadData, text);
-			UWR(text);
-			Delay_ms(2);
+			//spiReadData = spiRead();
+			//IntToStr(spiReadData, text);
+			//UWR(text);
+			//Delay_ms(2);
+			DACOUT = spiRead();
+			Delay_us(18);
 		}
 		// 5. Read 2 bytes CRC
 		spiReadData = spiRead();
@@ -643,7 +645,6 @@ void main()
 			// LCD_OUT(1, 6, codeToRam(infRdng));
 			UWR("Reading");
 			t = 0;
-			//readSingleBlock();
 			readMultipleBlock();
 			while (SLCT && OK)
 			{

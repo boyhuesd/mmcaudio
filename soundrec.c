@@ -298,6 +298,13 @@ readSingleBlock(void)
 }
 
 // better command sending function
+/******************************************************************************
+Send Command to the MMC/SD
+Arguments: uint8_t cmd, uint32_t arg
+Returns:
+	0 : sucesss
+	1 : error
+******************************************************************************/
 uint8_t
 sendCMD(uint8_t cmd, uint32_t arg)
 {
@@ -381,11 +388,11 @@ Returns:
 			spiWrite(0b11111100); // Data token for CMD 25
 			for (g = 0; g < 512; g++)
 			{
-				//spiWrite((uint8_t) g);
+				spiWrite((uint8_t) g);
 				//TP0 = 1;
-				spiWrite(adcRead());
+				//spiWrite(adcRead());
 				//TP0 = 0;
-				//Delay_us(15);
+				Delay_us(15);
 				// IntToStr(g, text);
 				// UWR(text);
 				// Delay_ms(2);
@@ -431,82 +438,79 @@ Returns:
 }
 
 
-void
+uint8_t
 readMultipleBlock(void)
 {
 	volatile uint16_t g;
 	volatile uint8_t text[7];
 	volatile uint16_t sectorIndex = 0;
-	// 1. Make sure the card is not busy
+	volatile uint8_t error;
+	volatile uint8_t retry = 0;
+	
 	do 
 	{
-		spiReadData = spiRead();
-	}
-	while (spiReadData != 0xff);
-	// 2. Send CMD 18 to read multiple block
-	command(18, arg, 0x95);
-	count = 0;
-	do // verify R1 respond
-	{
-		if (spiReadData == 0)
+		if (!(sendCMD(18, 0))) // read multiple block command accepted
 		{
-			UWR("Command accepted!");
+			error = 0;
 			break;
 		}
-		spiReadData = spiRead();
-		count++;
+		else
+		{
+			error = 1;
+			retry++;
+		}
 	}
-	while (count < 10);
-	if (count >= 10)
+	while (retry < 50);
+	
+	if (!error)
 	{
-		UWR("Command Rejected!");
-		while (1); // Trap the CPU
-	}
-	while (SLCT)
-	{
-		// 3. Read until received data token
+		while (SLCT)
+		{
+			// 3. Read until received data token
+			do 
+			{
+				spiReadData = spiRead();
+			}
+			while (spiReadData != 0xfe);
+			// 4. Read 512 bytes of data
+			for (g = 0; g < 512; g++)
+			{
+				//spiReadData = spiRead();
+				//IntToStr(spiReadData, text);
+				//UWR(text);
+				//Delay_ms(2);
+				DACOUT = spiRead();
+				Delay_us(17);
+			}
+			// 5. Read 2 bytes CRC
+			spiReadData = spiRead();
+			spiReadData = spiRead();
+			sectorIndex++;
+		}
+		// STOP TRANSMISSION
+		// 6. Send stop transmission command
+		command(12, 0, 0x95);
+		count = 0;
+		do
+		{
+			if (spiReadData == 0)
+			{
+				UWR("Stopped Transfer!");
+				break;
+			}
+			spiReadData = spiRead();
+			count++;
+		}
+		while (count < 10);
+		// 7. Read until card is ready
 		do 
 		{
 			spiReadData = spiRead();
 		}
-		while (spiReadData != 0xfe);
-		// 4. Read 512 bytes of data
-		for (g = 0; g < 512; g++)
-		{
-			//spiReadData = spiRead();
-			//IntToStr(spiReadData, text);
-			//UWR(text);
-			//Delay_ms(2);
-			DACOUT = spiRead();
-			Delay_us(18);
-		}
-		// 5. Read 2 bytes CRC
-		spiReadData = spiRead();
-		spiReadData = spiRead();
-		sectorIndex++;
+		while (spiReadData != 0xff);
+		UWR("Card free!");
 	}
-	// STOP TRANSMISSION
-	// 6. Send stop transmission command
-	command(12, 0, 0x95);
-	count = 0;
-	do
-	{
-		if (spiReadData == 0)
-		{
-			UWR("Stopped Transfer!");
-			break;
-		}
-		spiReadData = spiRead();
-		count++;
-	}
-	while (count < 10);
-	// 7. Read until card is ready
-	do 
-	{
-		spiReadData = spiRead();
-	}
-	while (spiReadData != 0xff);
-	UWR("Card free!");
+	return error;
 }
 
 void main()
@@ -641,11 +645,10 @@ void main()
 
 		if (mode == 2)
 		{
-			// LCD_CMD(_LCD_CLEAR);
-			// LCD_OUT(1, 6, codeToRam(infRdng));
-			UWR("Reading");
-			t = 0;
-			readMultipleBlock();
+			if (readMultipleBlock())
+			{
+				UWR("Read error!");
+			}
 			while (SLCT && OK)
 			{
 			}

@@ -24,8 +24,7 @@ Count=0
 Count=0
 ActiveImageIndex=-1
 [OPENED_FILES]
-Count=1
-File0=soundrec.c
+Count=0
 [EEPROM]
 Count=0
 [ACTIVE_COMMENTS_FILES]
@@ -34,12 +33,12 @@ Count=0
 Count=0
 [SEARCH_PATH]
 Count=10
-Path0=D:\Mikroelektronika\mikroC PRO for PIC\defs\
-Path1=D:\Mikroelektronika\mikroC PRO for PIC\uses\P18\
-Path2=D:\DEV\Embedded\PIC\mmc_audio\mikroc\pic18f4520-mmc-audio-recorder\
-Path3=E:\Mikroelektronika\mikroC PRO for PIC\defs\
-Path4=E:\Mikroelektronika\mikroC PRO for PIC\uses\P18\
-Path5=E:\DEV\Embedded\PIC\mmc_audio\mikroc\
+Path0=E:\Mikroelektronika\mikroC PRO for PIC\defs\
+Path1=E:\Mikroelektronika\mikroC PRO for PIC\uses\P18\
+Path2=E:\DEV\Embedded\PIC\mmc_audio\mikroc\
+Path3=D:\Mikroelektronika\mikroC PRO for PIC\defs\
+Path4=D:\Mikroelektronika\mikroC PRO for PIC\uses\P18\
+Path5=D:\DEV\Embedded\PIC\mmc_audio\mikroc\pic18f4520-mmc-audio-recorder\
 Path6=D:\Softwares\mikroC PRO for PIC\defs\
 Path7=D:\Softwares\mikroC PRO for PIC\uses\P18\
 Path8=D:\Dropbox\Public\dtvt\DoAnSpring2013\SOUND_RECODER\

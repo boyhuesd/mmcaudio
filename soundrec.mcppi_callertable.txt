@@ -18,7 +18,6 @@ main
 			SPI1_Write
 			SPI1_Read
 		SPI1_Write
-		adcRead
 		SPI1_Read
 		UART_Write_Text
 			UART_Write
@@ -29,6 +28,9 @@ main
 		WordToStr
 			Div_16x16_U
 	readMultipleBlock
+		sendCMD
+			SPI1_Write
+			SPI1_Read
 		SPI1_Read
 		command
 			SPI1_Write

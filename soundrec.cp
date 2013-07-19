@@ -1,5 +1,5 @@
-#line 1 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
-#line 1 "e:/mikroelektronika/mikroc pro for pic/include/stdint.h"
+#line 1 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
+#line 1 "d:/mikroelektronika/mikroc pro for pic/include/stdint.h"
 
 
 
@@ -41,10 +41,10 @@ typedef unsigned int uintptr_t;
 
 typedef signed long int intmax_t;
 typedef unsigned long int uintmax_t;
-#line 20 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 20 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
-#line 36 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 36 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
 sbit LCD_RS at LATD0_bit;
 sbit LCD_EN at LATD1_bit;
 sbit LCD_D7 at LATD7_bit;
@@ -121,18 +121,18 @@ void caidatMMC()
 {
   UART_Write_Text("Detecting MMC"); UART_Write(13); UART_Write(10); ;
  Delay_ms(1000);
-#line 113 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 113 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
  while (MMC_Init() != 0)
  {
  }
-#line 120 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 120 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
   UART_Write_Text("MMC Detected!"); UART_Write(13); UART_Write(10); ;
  Delay_ms (1000);
 }
-#line 131 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 131 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
 void
 command(char command, uint32_t fourbyte_arg, char CRCbits)
 {
@@ -301,7 +301,7 @@ readSingleBlock(void)
  spiReadData =  SPI1_Read(0xff) ;
   UART_Write_Text("DONE!"); UART_Write(13); UART_Write(10); ;
 }
-#line 308 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 308 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
 uint8_t
 sendCMD(uint8_t cmd, uint32_t arg)
 {
@@ -347,7 +347,7 @@ sendCMD(uint8_t cmd, uint32_t arg)
 
 uint8_t
 writeMultipleBlock(void)
-#line 359 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 359 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
 {
  volatile uint16_t g;
  volatile uint8_t retry;
@@ -380,11 +380,11 @@ writeMultipleBlock(void)
   SPI1_Write(0b11111100) ;
  for (g = 0; g < 512; g++)
  {
-  SPI1_Write((uint8_t) g) ;
 
 
+  SPI1_Write(adcRead()) ;
 
- Delay_us(15);
+
 
 
 
@@ -529,7 +529,7 @@ void main()
 
 
  UART1_Init(9600);
-#line 542 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 542 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
  while (1)
@@ -546,7 +546,7 @@ void main()
  while (1);
  }
  }
-#line 559 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 559 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
  for ( ; ; )
@@ -596,7 +596,7 @@ void main()
  t = 0;
   UART_Write_Text("Writing"); UART_Write(13); UART_Write(10); ;
  PORTB = 0x00;
-#line 611 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 611 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
  while (1)
@@ -613,7 +613,7 @@ void main()
  while (1);
  }
  }
-#line 628 "E:/DEV/Embedded/PIC/mmc_audio/mikroc/soundrec.c"
+#line 628 "D:/DEV/Embedded/PIC/mmc_audio/mikroc/pic18f4520-mmc-audio-recorder/soundrec.c"
  SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 
  if (writeMultipleBlock())

@@ -388,11 +388,11 @@ Returns:
 			spiWrite(0b11111100); // Data token for CMD 25
 			for (g = 0; g < 512; g++)
 			{
-				spiWrite((uint8_t) g);
+				//spiWrite((uint8_t) g);
 				//TP0 = 1;
-				//spiWrite(adcRead());
+				spiWrite(adcRead());
 				//TP0 = 0;
-				Delay_us(15);
+				//Delay_us(15);
 				// IntToStr(g, text);
 				// UWR(text);
 				// Delay_ms(2);

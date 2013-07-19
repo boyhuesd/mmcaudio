@@ -18,6 +18,7 @@ main
 			SPI1_Write
 			SPI1_Read
 		SPI1_Write
+		adcRead
 		SPI1_Read
 		UART_Write_Text
 			UART_Write

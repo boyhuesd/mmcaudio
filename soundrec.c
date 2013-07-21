@@ -15,6 +15,15 @@ git commit -a -m "..." // commit all
 git fetch origin
 git reset --hard origin/master
 ******************************************************************************/
+
+/******************************************************************************
+TODO::
+1. Luu du lieu thanh tung track, track list (dung EEPROM)
+2. Lua chon tan so lay mau
+3. Data reject handling
+4. Noise supression
+5. Check if the card address argument is byte-address or block-address?!!!
+******************************************************************************/
 #include <stdint.h>
 
 sfr sbit Mmc_Chip_Select at LATC2_bit;
@@ -69,18 +78,51 @@ const char infPressAnyKey[] = "PRESS ANY KEY!";
 #define SLCT RD2_bit
 #define OK RD3_bit
 #define DACOUT LATB
-//#define dulieuvao PORTD
 
 volatile unsigned char samplingRate = 1;
 volatile unsigned int mode = 0;
 volatile unsigned int t = 0;
 volatile unsigned char x;
 volatile uint8_t error;
-volatile uint16_t numberOfSectors;
+volatile uint32_t numberOfSectors;
 volatile uint8_t spiReadData;
 volatile uint32_t arg = 0;
 volatile uint8_t count;
 volatile uint16_t rejected = 0;
+
+/* EEPROM variables for track listing */
+//volatile uint8_t totalTrack = 0; // Total tracks have been recorded
+
+/******************************************************************************
+EEPROM data placement (00h - ffh)
+[8-bits totalTrack][32-bits trackAdd1][32-bits trackLength1][32-bits trackAdd2]
+
+totalTrack = 0b101xxxxxx - 101 to verify that a real total track
+TODO:: need to write a block that verify totalTrack when the program start, if 
+totalTrack is not verified, initialize it as 0 (0b101000000)
+
+void addTrack()
+Function to add the sectors recored in current session to the eeprom
+Returns: none
+
+void readTotalTrack()
+Function to read the total track in the EEPROM, if total track is not a valid 
+number, initialize it at 0.
+returns: totalTrack
+
+void trackList()
+Function returns track list via UART.
+******************************************************************************/
+void
+addTrack(uint32_t address, uint32_t length); // track address, numberOfSectors
+
+uint8_t
+readTotalTrack(void);
+
+void
+trackList(void);
+
+
 
 char* codeToRam(const char* ctxt)
 {
@@ -104,24 +146,6 @@ adcRead(void)
 	return ADRESH;
 }
 /*********** END ADC *****************/
-
-void caidatMMC()
-{
-	UWR("Detecting MMC");
-	Delay_ms(1000);
-	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
-	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
-
-	while (MMC_Init() != 0)
-	{
-	}
-	// change spi clock rate to achive maximum speed
-	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
-	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
-	UWR("MMC Detected!");
-	Delay_ms (1000);
-}
-
 
 /******************************************************************************
 MMC functions: 
@@ -564,10 +588,6 @@ void main()
 		while (SLCT != 0)        // Wait until SELECT pressed
 		{
 		}
-		// LCD_CMD(_LCD_CLEAR);
-		// LCD_CMD(_LCD_CURSOR_OFF);
-		// LCD_OUT(1, 1, codeToRam(infModeSlct));
-		
 		UWR("Select a Menu");
 		while (OK)
 		{
@@ -583,18 +603,12 @@ void main()
 
 			if ((mode == 1) & (lastMode != mode))
 			{
-				//LCD_OUT(2, 1, codeToRam(infWrt));
 				UWR("Record\n");
 			}
 			else if ((mode == 2) & (lastMode != mode))
 			{
-				//LCD_OUT(2, 1, codeToRam(infRd));
 				UWR("Play\n");
 			}
-			// else
-			// {
-			// LCD_OUT(2, 1, codeToRam(infSamplingSelect));
-			// }
 			lastMode = mode;					
 		}
 		/****** END REWRITE NEW SETUP GUI ******/
@@ -655,4 +669,54 @@ void main()
 		}
 		/**** END WORKING MODE *******/
 	}
+}
+
+void
+addTrack(uint32_t address, uint32_t length)
+{
+	static volatile uint8_t romAddr;
+	static volatile uint8_t totalTrack;
+	
+	totalTrack = EEPROM_Read(0x00) & 0b000111111; // Read the totalTrack value
+	romAddr = 8*totalTrack; // address to place new track metadata
+	/* Write new track address */
+	EEPROM_Write((romAddr + 1), (uint8_t) address >> 24); // MSB first
+	EEPROM_Write((romAddr + 2), (uint8_t) address >> 16);
+	EEPROM_Write((romAddr + 3), (uint8_t) address >> 8);
+	EEPROM_Write((romAddr + 4), (uint8_t) address);
+	/* Write new track length */
+	EEPROM_Write((romAddr + 5), (uint8_t) length >> 24); // MSB first
+	EEPROM_Write((romAddr + 6), (uint8_t) length >> 16);
+	EEPROM_Write((romAddr + 7), (uint8_t) length >> 8);
+	EEPROM_Write((romAddr + 8), (uint8_t) length);
+	/* Write new totalTrack */
+	totalTrack++;
+	totalTrack |= 0b10100000;
+	EEPROM_Write(0x00, totalTrack);
+}
+
+uint8_t
+readTotalTrack(void)
+{
+	static volatile uint8_t totalTrack;
+	
+	totalTrack = EEPROM_Read(0x00);
+	// check if totalTrack is a valid number
+	if (((totalTrack & 0b11100000) >> 5) != 0x05)
+	{
+		// invalid, totalTrack = 0;
+		EEPROM_Write(0x00, 0b10100000);
+		return 0;
+	}
+	else
+	{
+		// valid, return totalTrack
+		totalTrack &= 0b11100000;
+		return totalTrack;
+	}
+}
+
+void
+trackList(void)
+{
 }

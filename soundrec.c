@@ -747,7 +747,7 @@ void main()
 }
 
 /******************************************************************************
-uint8_t selecTrack
+uint8_t selectTrack
 returns:
 	- trackID
 	- 0: play the whole card

@@ -14,6 +14,14 @@ git commit -a -m "..." // commit all
 // drop local changes and commits, fetch the latest history from the server
 git fetch origin
 git reset --hard origin/master
+// create a new branch and switch to to it
+git checkout -b <branch_name>
+// switch back to master
+git checkout master
+// delete the branch
+git branch -d <branch_name>
+// push branch to ser
+git push origin branch
 ******************************************************************************/
 
 /******************************************************************************
@@ -23,6 +31,7 @@ TODO::
 3. Data reject handling
 4. Noise supression
 5. Check if the card address argument is byte-address or block-address?!!!
+6. !Write track metadata to MMC/SD, not EEPROM!
 ******************************************************************************/
 #include <stdint.h>
 
@@ -41,6 +50,9 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 #define initERROR_CMD0 1
 #define initERROR_CMD1 2
 #define initERROR_CMD16 3
+// EEPROM Fucntion definition
+#define _LENGTH 1
+#define _ADDRESS 0
 
 sbit LCD_RS at LATD0_bit;
 sbit LCD_EN at LATD1_bit;
@@ -111,7 +123,10 @@ number, initialize it at 0.
 returns: totalTrack
 
 void trackList()
-Function returns track list via UART.
+Function print track list via UART.
+
+uint32_t readTrackMeta()
+Function returns track address or track length.
 ******************************************************************************/
 void
 addTrack(uint32_t address, uint32_t length); // track address, numberOfSectors
@@ -122,6 +137,8 @@ readTotalTrack(void);
 void
 trackList(void);
 
+uint32_t
+readTrackMeta(uint8_t trackID, uint8_t returnType);
 
 
 char* codeToRam(const char* ctxt)
@@ -373,9 +390,10 @@ sendCMD(uint8_t cmd, uint32_t arg)
 }
 
 uint8_t
-writeMultipleBlock(void)
+writeMultipleBlock(uint32_t address)
 /******************************************************************************
 Write multiple block of data to the MMC/SD.
+address: address location begin to write.
 Returns:
 	0 if successful.
 	1 write error.
@@ -719,4 +737,69 @@ readTotalTrack(void)
 void
 trackList(void)
 {
+	static volatile uint8_t text[10];
+	static volatile uint8_t totalTrack;
+	static volatile i;
+	
+	totalTrack = readTotalTrack(); // beware of nesting fucntion call!
+	
+	if (totalTrack != 0)
+	{
+		UWR("Track list:");
+		IntToStr(EEPROM_Read(0x00), text); // convert total track to string
+		UART_Write_Text("Total track: ");
+		UWR(text);
+		/* print track list */
+		for (i = 1; i <= totalTrack; i++)
+		{
+			UART_Write_Text("Track ");
+			IntToStr(i, text);
+			UART_Write_Text(text);
+			UART_Write_Text(": ");
+			/* Write track address */
+			// !!! Beware of nesting function call
+			IntToStr((readTrackMeta(i, _ADDRESS), text); // trackAddr to string
+			UART_Write_Text(text); // write track address
+			UART_Write_Text("  "); // write inline spaces
+			/* Write track length */
+			IntToStr((readTrackMeta(i, _LENGTH)), text); // trackLnght to strng
+			UWR(text); // write track length and break line
+		}
+		UWR("*** END ***");
+	}
+	else 
+	{
+		// totalTrack = 0;
+		UWR("No track available!");
+	}
+}
+
+void
+readTrackMeta(uint8_t trackID, uint8_t returnType)
+{
+	static volatile uint32_t trackAddr = 0;
+	static volatile uint32_t trackLength = 0;
+	static volatile uint8_t romAddr; // first rom location for track
+	
+	romAddr = 8 * (trackID - 1);
+	if (returnType == _ADDRESS)
+	{
+		trackAddr |= (uint32_t) (EEPROM_Read(romAddr + 1) << 24); // MSB
+		trackAddr |= (uint32_t) (EEPROM_Read(romAddr + 2) << 16);
+		trackAddr |= (uint32_t) (EEPROM_Read(romAddr + 3) << 8);
+		trackAddr |= (uint32_t) (EEPROM_Read(romAddr + 4)); // LSB
+		return trackAddr;
+	}
+	else if (returnType == _LENGTH)
+	{
+		trackLength |= (uint32_t) (EEPROM_Read(romAddr + 5) << 24); // MSB
+		trackLength |= (uint32_t) (EEPROM_Read(romAddr + 6) << 16);
+		trackLength |= (uint32_t) (EEPROM_Read(romAddr + 7) << 8);
+		trackLength |= (uint32_t) (EEPROM_Read(romAddr + 8)); // LSB
+		return trackLength;		
+	}
+	else
+	{
+		return 0; // ERROR
+	}
 }

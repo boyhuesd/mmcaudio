@@ -20,7 +20,7 @@ git checkout -b <branch_name>
 git checkout master
 // delete the branch
 git branch -d <branch_name>
-// push branch to ser
+// push branch to server
 git push origin branch
 ******************************************************************************/
 
@@ -31,7 +31,13 @@ TODO::
 3. Data reject handling
 4. Noise supression
 5. Check if the card address argument is byte-address or block-address?!!!
+>>> block for SDC v2, byte otherwise
 6. !Write track metadata to MMC/SD, not EEPROM!
+7. Rewrite MMC/SD Init fucntion to support more card
+8. Add feature to keep or discard a track when recorded successful.
+9. Write an UI that ask for which track to play.
+10. Create a header files that contain information string constant
+11. Write handle when play the whole card
 ******************************************************************************/
 #include <stdint.h>
 
@@ -104,7 +110,6 @@ volatile uint16_t rejected = 0;
 
 /* EEPROM variables for track listing */
 //volatile uint8_t totalTrack = 0; // Total tracks have been recorded
-
 /******************************************************************************
 EEPROM data placement (00h - ffh)
 [8-bits totalTrack][32-bits trackAdd1][32-bits trackLength1][32-bits trackAdd2]
@@ -113,7 +118,7 @@ totalTrack = 0b101xxxxxx - 101 to verify that a real total track
 TODO:: need to write a block that verify totalTrack when the program start, if 
 totalTrack is not verified, initialize it as 0 (0b101000000)
 
-void addTrack()
+void addTrack(uint32_t address, uint32_t length)
 Function to add the sectors recored in current session to the eeprom
 Returns: none
 
@@ -125,9 +130,17 @@ returns: totalTrack
 void trackList()
 Function print track list via UART.
 
-uint32_t readTrackMeta()
+uint32_t readTrackMeta(uint8_t trackID, uint8_t returnType)
 Function returns track address or track length.
+
+uint8_t selectTrack(void)
+An UI that ask for which track to play.
+returns: trackID
 ******************************************************************************/
+
+void
+selectTrack(void);
+
 void
 addTrack(uint32_t address, uint32_t length); // track address, numberOfSectors
 
@@ -140,7 +153,6 @@ trackList(void);
 uint32_t
 readTrackMeta(uint8_t trackID, uint8_t returnType);
 
-
 char* codeToRam(const char* ctxt)
 {
 	static char txt[20];
@@ -149,8 +161,6 @@ char* codeToRam(const char* ctxt)
 
 	return txt;
 }
-
-
 
 /*********** BEGIN ADC *****************/
 uint8_t
@@ -393,7 +403,9 @@ uint8_t
 writeMultipleBlock(uint32_t address)
 /******************************************************************************
 Write multiple block of data to the MMC/SD.
-address: address location begin to write.
+address: address location begin to write (byte address mode only)
+numberOfSectors should be used as track length
+
 Returns:
 	0 if successful.
 	1 write error.
@@ -405,7 +417,7 @@ Returns:
 	
 	do 
 	{
-		if (!(sendCMD(25, 0))) // write command accepted
+		if (!(sendCMD(25, address))) // write command accepted
 		{
 			error = 0;
 			break;
@@ -480,8 +492,18 @@ Returns:
 }
 
 
+/******************************************************************************
+uint8_t readMultipleBlock(uint32_t address, uint32_t length);
+Function to read multiple block from MMC/SD
+address : bye address to read (track address)
+length: number of bytes to read (track length)
+
+returns: 
+	0: success
+	1: error
+******************************************************************************/
 uint8_t
-readMultipleBlock(void)
+readMultipleBlock(uint32_t address, uint32_t length)
 {
 	volatile uint16_t g;
 	volatile uint8_t text[7];
@@ -491,7 +513,7 @@ readMultipleBlock(void)
 	
 	do 
 	{
-		if (!(sendCMD(18, 0))) // read multiple block command accepted
+		if (!(sendCMD(18, address))) // read multiple block command accepted
 		{
 			error = 0;
 			break;
@@ -506,8 +528,9 @@ readMultipleBlock(void)
 	
 	if (!error)
 	{
-		while (SLCT)
+		while (sectorIndex <= length)
 		{
+			sectorIndex++;
 			// 3. Read until received data token
 			do 
 			{
@@ -527,7 +550,6 @@ readMultipleBlock(void)
 			// 5. Read 2 bytes CRC
 			spiReadData = spiRead();
 			spiReadData = spiRead();
-			sectorIndex++;
 		}
 		// STOP TRANSMISSION
 		// 6. Send stop transmission command
@@ -561,6 +583,10 @@ void main()
 	unsigned char lastMode;
 	volatile uint8_t initRetry = 0;
 	volatile uint8_t text[10];
+	static volatile uint8_t totalTrack;
+	static volatile uint32_t trackAddr = 0; // MMC/SD Addr to write this track
+	static volatile uint32_t trackLength = 0;
+	static volatile uint8_t i;
 
 	// adcInit();
 	ADCON1 |= 0x0e; // AIN0 as analog input
@@ -602,7 +628,7 @@ void main()
 
 	for ( ; ; )        // Repeats forever
 	{
-		/****** REWRITE NEW SETUP GUI ******/
+		/****** REWRITE NEW SETUP UI ******/
 		while (SLCT != 0)        // Wait until SELECT pressed
 		{
 		}
@@ -629,19 +655,19 @@ void main()
 			}
 			lastMode = mode;					
 		}
-		/****** END REWRITE NEW SETUP GUI ******/
+		/****** END REWRITE NEW SETUP UI ******/
 
 		/**** BEGIN WORKING MODE *******/
-		if (mode == 1)
+		if (mode == 1) // Record
 		{
 			t = 0;
 			UWR("Writing");
 			PORTB = 0x00;
 			//writeSingleBlock();
-			// SPI Initialization
+			// SPI Re-Initialization
 			SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
 			_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
-			// MMC/SD Initialization
+			// MMC/SD Re-Initialization
 			while (1)
 			{
 				if (mmcInit() == 0)
@@ -659,7 +685,23 @@ void main()
 			SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
 			_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 			
-			if (writeMultipleBlock())
+			/* Read total track to determine the address to write this track */
+			totalTrack = readTotalTrack();
+			if (totalTrack == 0) // Card is empty
+			{
+				trackAddr = 0; //  write on the beginning.
+			}
+			else (totalTrack != 0) // card is not empty
+			{
+				/* Determine first free sector */
+				for (i = 1; i <= totalTrack; i++)
+				{
+					trackAddr += readTrackMeta(_LENGTH); 
+				}
+				trackAddr += 1; // first free location
+			}
+			/* Write a new track */			
+			if (writeMultipleBlock(trackAddr))
 			{
 				UWR("Write error!");
 			}
@@ -672,15 +714,30 @@ void main()
 				IntToStr(rejected, text);
 				UWR("Lost: ");
 				UWR(text); // Print out number of recjected sector
+				addTrack(trackAddr, numberOfSectors);
+				UWR("Track added!");
 			}
 		}
 
 		if (mode == 2)
 		{
-			if (readMultipleBlock())
+			// TODO:: declare uint8_t trackID in main() scope
+			/* Get track address and track length */
+			trackAddr = readTrackMeta(trackID, _ADDRESS);
+			trackLength = readTrackMeta(trackID, _LENGTH);
+			if (trackLength != 0)
 			{
-				UWR("Read error!");
+				/* Play the track */
+				if (readMultipleBlock(trackAddr, trackLength))
+				{
+					UWR("Read error!"); 
+				}
 			}
+			else
+			{
+				UWR("Track empty!");
+			}
+			
 			while (SLCT && OK)
 			{
 			}
@@ -688,6 +745,24 @@ void main()
 		/**** END WORKING MODE *******/
 	}
 }
+
+/******************************************************************************
+uint8_t selecTrack
+returns:
+	- trackID
+	- 0: play the whole card
+******************************************************************************/
+uint8_t
+selectTrack(void)
+{
+	static volatile uint8_t totalTrack = 0;
+	static volatile uint8_t trackID = 0;
+	
+	UWR("Which track to play?");
+	totalTrack = EEPROM_Read(0x00) & 0b11100000;
+
+}
+
 
 void
 addTrack(uint32_t address, uint32_t length)

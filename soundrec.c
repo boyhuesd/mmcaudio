@@ -36,8 +36,10 @@ TODO::
 7. Rewrite MMC/SD Init fucntion to support more card
 8. Add feature to keep or discard a track when recorded successful.
 9. Write an UI that ask for which track to play.
+>>> Done, debug it!
 10. Create a header files that contain information string constant
-11. Write handle when play the whole card
+11. Write handle when play the whole card in readMultipleBlock()
+12. Display sampling period on oscilloscope.
 ******************************************************************************/
 #include <stdint.h>
 
@@ -587,6 +589,7 @@ void main()
 	static volatile uint32_t trackAddr = 0; // MMC/SD Addr to write this track
 	static volatile uint32_t trackLength = 0;
 	static volatile uint8_t i;
+	static volatile uint8_t trackID = 0;
 
 	// adcInit();
 	ADCON1 |= 0x0e; // AIN0 as analog input
@@ -721,24 +724,30 @@ void main()
 
 		if (mode == 2)
 		{
-			// TODO:: declare uint8_t trackID in main() scope
-			/* Get track address and track length */
-			trackAddr = readTrackMeta(trackID, _ADDRESS);
-			trackLength = readTrackMeta(trackID, _LENGTH);
-			if (trackLength != 0)
+			trackID = selectTrack();
+			if (trackID != 0)
 			{
-				/* Play the track */
-				if (readMultipleBlock(trackAddr, trackLength))
+				/* Get track address and track length */
+				trackAddr = readTrackMeta(trackID, _ADDRESS);
+				trackLength = readTrackMeta(trackID, _LENGTH);
+				if (trackLength != 0)
 				{
-					UWR("Read error!"); 
+					/* Play the track */
+					if (readMultipleBlock(trackAddr, trackLength))
+					{
+						UWR("Read error!"); 
+					}
+				}
+				else
+				{
+					UWR("Track empty!");
 				}
 			}
-			else
+			else 
 			{
-				UWR("Track empty!");
+				//TODO:: play the whole card goes here
 			}
-			
-			while (SLCT && OK)
+			while (SLCT && OK) // return to main menu
 			{
 			}
 		}
@@ -757,10 +766,39 @@ selectTrack(void)
 {
 	static volatile uint8_t totalTrack = 0;
 	static volatile uint8_t trackID = 0;
+	static volatile uint8_t text[7] = 0;
 	
 	UWR("Which track to play?");
-	totalTrack = EEPROM_Read(0x00) & 0b11100000;
-
+	totalTrack = readTotalTrack();
+	if (totalTrack != 0)
+	{
+		do
+		{
+			for (i = 1; i <= totalTrack; i++)
+			{
+				IntToStr(i, text);
+				UWR(text);
+				while (SLCT)
+				{
+					if (!OK)
+					{
+						trackID = i;
+						break;
+					}
+				}
+				if (trackID != 0)
+				{
+					break;
+				}
+			}
+		}
+		while (trackID != 0); 
+		return trackID;
+	}
+	else
+	{
+		return 0; // play the whole card
+	}
 }
 
 

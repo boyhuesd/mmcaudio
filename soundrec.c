@@ -140,7 +140,7 @@ An UI that ask for which track to play.
 returns: trackID
 ******************************************************************************/
 
-void
+uint8_t
 selectTrack(void);
 
 void
@@ -915,4 +915,26 @@ readTrackMeta(uint8_t trackID, uint8_t returnType)
 	{
 		return 0; // ERROR
 	}
+}
+
+/******************************************************************************
+uint8_t betterMmcInit(void)
+New MMC/SD init function support more cards.
+returns:
+	0: success
+	1: error, card not detected
+******************************************************************************/
+uint8_t
+betterMmcInit()
+{
+	static volatile uint8_t u;
+	
+	Delay_ms(2); // Delay 2 ms after power up the card
+	Mmc_Chip_Select = 1; // CS = 1
+	for (u = 0; u < 10; u++) // send 80 dummy clocks	
+	{
+		spiWrite(0xff);
+	}
+	Mmc_Chip_Select = 0; // CS = 0
+	
 }

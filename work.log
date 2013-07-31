@@ -1,5 +1,17 @@
 ﻿#work log
 
+10:50 CH 31/07/2013
+lam viec sau
+- write error khi da co it nhat 1 track duoc ghi => viec tinh toan track bi sai!?
+- line 436; add delay between each try to send command
+########### CAUTION ############################
+cần phải debug để biết được địa chỉ là byte address hay block, và cách thức chấp
+nhận địa chỉ là như thế nào (chấp nhận CMD)
+
+
+11:35 SA 31/07/2013
+- uint8_t getResponse(uint8_t type)
+
 12:22 SA 31/07/2013
 TODO::
 - Viet lai function mmcInit

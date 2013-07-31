@@ -42,6 +42,7 @@ TODO::
 12. Display sampling period on oscilloscope.
 ******************************************************************************/
 #include <stdint.h>
+#include "soundrec.h"
 
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
@@ -61,6 +62,11 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 // EEPROM Fucntion definition
 #define _LENGTH 1
 #define _ADDRESS 0
+// respond type
+#define _R1 0
+#define _R3 1
+#define _R7 1
+#define _RESPOND_ERROR 0xff
 
 sbit LCD_RS at LATD0_bit;
 sbit LCD_EN at LATD1_bit;
@@ -427,6 +433,8 @@ Returns:
 		else
 		{
 			error = 1;
+			Delay_ms(50);
+			UWR("CMD error!");
 			retry++;
 		}
 	}
@@ -694,14 +702,14 @@ void main()
 			{
 				trackAddr = 0; //  write on the beginning.
 			}
-			else (totalTrack != 0) // card is not empty
+			else // card is not empty, totalTrack != 0
 			{
 				/* Determine first free sector */
 				for (i = 1; i <= totalTrack; i++)
 				{
-					trackAddr += readTrackMeta(_LENGTH); 
+					trackAddr += readTrackMeta(i, _LENGTH) * 512; 
 				}
-				trackAddr += 1; // first free location
+				//trackAddr += 1; // first free location
 			}
 			/* Write a new track */			
 			if (writeMultipleBlock(trackAddr))
@@ -719,11 +727,13 @@ void main()
 				UWR(text); // Print out number of recjected sector
 				addTrack(trackAddr, numberOfSectors);
 				UWR("Track added!");
+				trackList();
 			}
 		}
 
 		if (mode == 2)
 		{
+			
 			trackID = selectTrack();
 			if (trackID != 0)
 			{
@@ -766,7 +776,8 @@ selectTrack(void)
 {
 	static volatile uint8_t totalTrack = 0;
 	static volatile uint8_t trackID = 0;
-	static volatile uint8_t text[7] = 0;
+	static volatile uint8_t text[7];
+	static volatile uint8_t i;
 	
 	UWR("Which track to play?");
 	totalTrack = readTotalTrack();
@@ -842,7 +853,7 @@ readTotalTrack(void)
 	else
 	{
 		// valid, return totalTrack
-		totalTrack &= 0b11100000;
+		totalTrack &= 0b00011111;
 		return totalTrack;
 	}
 }
@@ -859,7 +870,7 @@ trackList(void)
 	if (totalTrack != 0)
 	{
 		UWR("Track list:");
-		IntToStr(EEPROM_Read(0x00), text); // convert total track to string
+		IntToStr(totalTrack, text); // convert total track to string
 		UART_Write_Text("Total track: ");
 		UWR(text);
 		/* print track list */
@@ -871,7 +882,7 @@ trackList(void)
 			UART_Write_Text(": ");
 			/* Write track address */
 			// !!! Beware of nesting function call
-			IntToStr((readTrackMeta(i, _ADDRESS), text); // trackAddr to string
+			IntToStr((readTrackMeta(i, _ADDRESS)), text); // trackAddr to string
 			UART_Write_Text(text); // write track address
 			UART_Write_Text("  "); // write inline spaces
 			/* Write track length */
@@ -887,7 +898,7 @@ trackList(void)
 	}
 }
 
-void
+uint32_t
 readTrackMeta(uint8_t trackID, uint8_t returnType)
 {
 	static volatile uint32_t trackAddr = 0;
@@ -925,7 +936,7 @@ returns:
 	1: error, card not detected
 ******************************************************************************/
 uint8_t
-betterMmcInit()
+betterMmcInit(void)
 {
 	static volatile uint8_t u;
 	
@@ -937,4 +948,28 @@ betterMmcInit()
 	}
 	Mmc_Chip_Select = 0; // CS = 0
 	
+}
+
+/******************************************************************************
+uint8_t getResponse(uint8_t type);
+Get R1, R3/R7 response from card.
+return: 
+	- respond : success
+	- 0xff : error
+******************************************************************************/
+uint8_t getResponse(uint8_t type)
+{
+	static volatile uint8_t r1Respond;
+	static volatile uint32_t r3Respond;
+	static volatile uint8_t count = 0;
+	
+	if (type == R1) // get R1 respond
+	{
+		do 
+		{
+			spiReadData = spiRead();
+			count++;
+		}
+		while (1); //TODO:: fix
+	}
 }

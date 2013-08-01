@@ -1,5 +1,15 @@
 ﻿#work log
 
+11:06 CH 01/08/2013
+debug selectTrack();
+
+3:30 CH 01/08/2013
+Reinit MMC khi write bị lỗi, đã disable bằng condition define 
+
+12:03 CH 01/08/2013
+Địa chỉ là byteaddress nhưng tính theo block !?
+tính toán lại trackAddr
+
 10:50 CH 31/07/2013
 lam viec sau
 - write error khi da co it nhat 1 track duoc ghi => viec tinh toan track bi sai!?

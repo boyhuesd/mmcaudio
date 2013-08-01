@@ -52,6 +52,7 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 	UART_Write(13);\
 	UART_Write(10);
 
+// function aliases
 #define spiWrite(x) SPI1_Write(x)
 #define spiRead() SPI1_Read(0xff)
 
@@ -67,6 +68,21 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 #define _R3 1
 #define _R7 1
 #define _RESPOND_ERROR 0xff
+// Debug define
+/******************************************************************************
+usage:
+#ifdef DEBUG
+{ debug code goes here}
+#else
+{ not debug code goes here}
+#endif
+******************************************************************************/
+//#define DEBUG
+#define WRITE_DEBUG
+#define READ_DEBUG
+#define HOME_TEST
+#define LAB_TEST
+#define REINIT_MMC
 
 sbit LCD_RS at LATD0_bit;
 sbit LCD_EN at LATD1_bit;
@@ -118,49 +134,6 @@ volatile uint16_t rejected = 0;
 
 /* EEPROM variables for track listing */
 //volatile uint8_t totalTrack = 0; // Total tracks have been recorded
-/******************************************************************************
-EEPROM data placement (00h - ffh)
-[8-bits totalTrack][32-bits trackAdd1][32-bits trackLength1][32-bits trackAdd2]
-
-totalTrack = 0b101xxxxxx - 101 to verify that a real total track
-TODO:: need to write a block that verify totalTrack when the program start, if 
-totalTrack is not verified, initialize it as 0 (0b101000000)
-
-void addTrack(uint32_t address, uint32_t length)
-Function to add the sectors recored in current session to the eeprom
-Returns: none
-
-void readTotalTrack()
-Function to read the total track in the EEPROM, if total track is not a valid 
-number, initialize it at 0.
-returns: totalTrack
-
-void trackList()
-Function print track list via UART.
-
-uint32_t readTrackMeta(uint8_t trackID, uint8_t returnType)
-Function returns track address or track length.
-
-uint8_t selectTrack(void)
-An UI that ask for which track to play.
-returns: trackID
-******************************************************************************/
-
-uint8_t
-selectTrack(void);
-
-void
-addTrack(uint32_t address, uint32_t length); // track address, numberOfSectors
-
-uint8_t
-readTotalTrack(void);
-
-void
-trackList(void);
-
-uint32_t
-readTrackMeta(uint8_t trackID, uint8_t returnType);
-
 char* codeToRam(const char* ctxt)
 {
 	static char txt[20];
@@ -423,6 +396,8 @@ Returns:
 	volatile uint8_t retry;
 	volatile uint8_t error;
 	
+	retry = 0;
+	error = 0;
 	do 
 	{
 		if (!(sendCMD(25, address))) // write command accepted
@@ -433,7 +408,7 @@ Returns:
 		else
 		{
 			error = 1;
-			Delay_ms(50);
+			Delay_ms(100);
 			UWR("CMD error!");
 			retry++;
 		}
@@ -452,14 +427,22 @@ Returns:
 			spiWrite(0b11111100); // Data token for CMD 25
 			for (g = 0; g < 512; g++)
 			{
-				//spiWrite((uint8_t) g);
-				//TP0 = 1;
+				#ifdef DEBUG
+				
+				#ifdef WRITE_DEBUG // Debug write
+				spiWrite(22);
+				Delay_us(50);
+				#endif
+				
+				#else // real code
+				
+				#ifdef HOME_TEST // done have a signal generator
+				spiWrite(50);
+				#else // lab test, full equipment
 				spiWrite(adcRead());
-				//TP0 = 0;
-				//Delay_us(15);
-				// IntToStr(g, text);
-				// UWR(text);
-				// Delay_ms(2);
+				#endif
+				
+				#endif
 			} // write a block of 512 bytes data
 			spiWrite(0xff);
 			spiWrite(0xff); // 2 bytes CRC
@@ -550,12 +533,15 @@ readMultipleBlock(uint32_t address, uint32_t length)
 			// 4. Read 512 bytes of data
 			for (g = 0; g < 512; g++)
 			{
-				//spiReadData = spiRead();
-				//IntToStr(spiReadData, text);
-				//UWR(text);
-				//Delay_ms(2);
+				#ifdef DEBUG
+				spiReadData = spiRead();
+				IntToStr(spiReadData, text);
+				UWR(text);
+				Delay_ms(2);
+				#else
 				DACOUT = spiRead();
 				Delay_us(17);
+				#endif
 			}
 			// 5. Read 2 bytes CRC
 			spiReadData = spiRead();
@@ -594,7 +580,7 @@ void main()
 	volatile uint8_t initRetry = 0;
 	volatile uint8_t text[10];
 	static volatile uint8_t totalTrack;
-	static volatile uint32_t trackAddr = 0; // MMC/SD Addr to write this track
+	static volatile uint32_t trackAddr; // MMC/SD Addr to write this track
 	static volatile uint32_t trackLength = 0;
 	static volatile uint8_t i;
 	static volatile uint8_t trackID = 0;
@@ -644,13 +630,15 @@ void main()
 		{
 		}
 		UWR("Select a Menu");
+		IntToStr(OK, text);
+		UWR(text);
 		while (OK)
 		{
 			if (!SLCT)
 			{
 				Delay_ms(300);
 				mode++;
-				if (mode == 3)
+				if (mode == 4)
 				{
 					mode = 1;
 				}
@@ -658,11 +646,15 @@ void main()
 
 			if ((mode == 1) & (lastMode != mode))
 			{
-				UWR("Record\n");
+				UWR("Record");
 			}
 			else if ((mode == 2) & (lastMode != mode))
 			{
-				UWR("Play\n");
+				UWR("Play");
+			}
+			else if ((mode == 3) & (lastMode != mode))
+			{
+				UWR("Tracklist");
 			}
 			lastMode = mode;					
 		}
@@ -671,13 +663,17 @@ void main()
 		/**** BEGIN WORKING MODE *******/
 		if (mode == 1) // Record
 		{
+			#ifndef DEBUG // real code 
 			t = 0;
 			UWR("Writing");
 			PORTB = 0x00;
-			//writeSingleBlock();
+			
+			#ifdef REINIT_MMC
+			
 			// SPI Re-Initialization
 			SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
 			_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+			
 			// MMC/SD Re-Initialization
 			while (1)
 			{
@@ -695,9 +691,12 @@ void main()
 			}
 			SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
 			_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+			#endif
 			
 			/* Read total track to determine the address to write this track */
+			trackAddr = 0;
 			totalTrack = readTotalTrack();
+			
 			if (totalTrack == 0) // Card is empty
 			{
 				trackAddr = 0; //  write on the beginning.
@@ -707,12 +706,21 @@ void main()
 				/* Determine first free sector */
 				for (i = 1; i <= totalTrack; i++)
 				{
-					trackAddr += readTrackMeta(i, _LENGTH) * 512; 
+					IntToStr(readTrackMeta(i, _LENGTH), text);
+					UWR(text);
+					trackAddr = trackAddr + readTrackMeta(i, _LENGTH); 
 				}
 				//trackAddr += 1; // first free location
 			}
+			
+			// Convert trackAddr to string
+			LongWordToStr(trackAddr, text);
+			UWR(text);
+			LongWordToStr(59904, text);
+			UWR(text);
+			
 			/* Write a new track */			
-			if (writeMultipleBlock(trackAddr))
+			if (writeMultipleBlock(trackAddr * 512))
 			{
 				UWR("Write error!");
 			}
@@ -725,16 +733,44 @@ void main()
 				IntToStr(rejected, text);
 				UWR("Lost: ");
 				UWR(text); // Print out number of recjected sector
+				LongWordToStr(trackAddr, text);
+				UWR(text);
 				addTrack(trackAddr, numberOfSectors);
 				UWR("Track added!");
 				trackList();
 			}
+			
+			#else // debug code
+			t = 0;
+			UWR("Writing");
+			PORTB = 0x00;
+			// write to mmc
+			if (writeMultipleBlock(7*512)) // byte address 
+			{
+				UWR("Write error!");
+			}
+			else
+			{
+				UWR("STOPPED!")
+				IntToStr(numberOfSectors, text);
+				UWR("Written:")
+				UWR(text);
+				IntToStr(rejected, text);
+				UWR("Lost: ");
+				UWR(text); // Print out number of recjected sector
+			}
+			#endif
 		}
 
-		if (mode == 2)
+		else if (mode == 2) // Play
 		{
-			
+			#ifndef DEBUG // realcode
 			trackID = selectTrack();
+			UART_Write_Text("Selected: ");
+			IntToStr(trackID, text);
+			UWR(text);
+			while(1);
+			
 			if (trackID != 0)
 			{
 				/* Get track address and track length */
@@ -757,6 +793,26 @@ void main()
 			{
 				//TODO:: play the whole card goes here
 			}
+			
+			#else
+			//read 10 block from address 0
+			if (readMultipleBlock(6*512, 3))
+			{
+				UWR("Read error!"); 
+			}
+			#endif
+			while (SLCT && OK) // return to main menu
+			{
+			}
+		}
+		else if (mode == 3) // track listing
+		{
+			tracklist();
+			for (i = 0; i < 48; i++)
+			{
+				IntToStr(EEPROM_Read(i), text);
+				UART_Write_Text(text);
+			}
 			while (SLCT && OK) // return to main menu
 			{
 			}
@@ -774,36 +830,34 @@ returns:
 uint8_t
 selectTrack(void)
 {
-	static volatile uint8_t totalTrack = 0;
-	static volatile uint8_t trackID = 0;
-	static volatile uint8_t text[7];
-	static volatile uint8_t i;
+	uint8_t temp = 0;
+	uint8_t trackID;
+	uint8_t text[7];
+	uint8_t i = 1;
 	
 	UWR("Which track to play?");
-	totalTrack = readTotalTrack();
-	if (totalTrack != 0)
+	temp = readTotalTrack();
+	trackID = 0;
+	if (temp != 0)
 	{
-		do
+		while (!OK)
 		{
-			for (i = 1; i <= totalTrack; i++)
+			if (!SLCT)
 			{
-				IntToStr(i, text);
-				UWR(text);
-				while (SLCT)
+				Delay_ms(300);
+				i++;
+				if (i == (temp + 1))
 				{
-					if (!OK)
-					{
-						trackID = i;
-						break;
-					}
-				}
-				if (trackID != 0)
-				{
-					break;
+					i = 1;
 				}
 			}
+			
+			trackID = i;
+			IntToStr(i, text);
+			UWR(text);
+			Delay_ms(200);
 		}
-		while (trackID != 0); 
+		
 		return trackID;
 	}
 	else
@@ -822,14 +876,14 @@ addTrack(uint32_t address, uint32_t length)
 	totalTrack = EEPROM_Read(0x00) & 0b000111111; // Read the totalTrack value
 	romAddr = 8*totalTrack; // address to place new track metadata
 	/* Write new track address */
-	EEPROM_Write((romAddr + 1), (uint8_t) address >> 24); // MSB first
-	EEPROM_Write((romAddr + 2), (uint8_t) address >> 16);
-	EEPROM_Write((romAddr + 3), (uint8_t) address >> 8);
+	EEPROM_Write((romAddr + 1), (uint8_t) (address >> 24)); // MSB first
+	EEPROM_Write((romAddr + 2), (uint8_t) (address >> 16));
+	EEPROM_Write((romAddr + 3), (uint8_t) (address >> 8));
 	EEPROM_Write((romAddr + 4), (uint8_t) address);
 	/* Write new track length */
-	EEPROM_Write((romAddr + 5), (uint8_t) length >> 24); // MSB first
-	EEPROM_Write((romAddr + 6), (uint8_t) length >> 16);
-	EEPROM_Write((romAddr + 7), (uint8_t) length >> 8);
+	EEPROM_Write((romAddr + 5), (uint8_t) (length >> 24)); // MSB first
+	EEPROM_Write((romAddr + 6), (uint8_t) (length >> 16));
+	EEPROM_Write((romAddr + 7), (uint8_t) (length >> 8));
 	EEPROM_Write((romAddr + 8), (uint8_t) length);
 	/* Write new totalTrack */
 	totalTrack++;
@@ -861,39 +915,41 @@ readTotalTrack(void)
 void
 trackList(void)
 {
-	static volatile uint8_t text[10];
-	static volatile uint8_t totalTrack;
-	static volatile i;
+	uint8_t text[10];
+	uint8_t tTrack;
+	uint8_t t;
+	uint8_t temp;
 	
-	totalTrack = readTotalTrack(); // beware of nesting fucntion call!
+	tTrack = readTotalTrack(); // beware of nesting fucntion call!
 	
-	if (totalTrack != 0)
+	if (tTrack != 0)
 	{
 		UWR("Track list:");
-		IntToStr(totalTrack, text); // convert total track to string
+		temp = tTrack;
+		IntToStr(temp, text); // convert total track to string
 		UART_Write_Text("Total track: ");
 		UWR(text);
 		/* print track list */
-		for (i = 1; i <= totalTrack; i++)
+		for (t = 1; t <= temp; t++)
 		{
 			UART_Write_Text("Track ");
-			IntToStr(i, text);
+			IntToStr(t, text);
 			UART_Write_Text(text);
 			UART_Write_Text(": ");
 			/* Write track address */
 			// !!! Beware of nesting function call
-			IntToStr((readTrackMeta(i, _ADDRESS)), text); // trackAddr to string
+			LongWordToStr((readTrackMeta(t, _ADDRESS)), text); // trackAddr to string
 			UART_Write_Text(text); // write track address
 			UART_Write_Text("  "); // write inline spaces
 			/* Write track length */
-			IntToStr((readTrackMeta(i, _LENGTH)), text); // trackLnght to strng
+			LongWordToStr((readTrackMeta(t, _LENGTH)), text); // trackLnght to strng
 			UWR(text); // write track length and break line
 		}
 		UWR("*** END ***");
 	}
 	else 
 	{
-		// totalTrack = 0;
+		// tTrack = 0;
 		UWR("No track available!");
 	}
 }
@@ -901,9 +957,9 @@ trackList(void)
 uint32_t
 readTrackMeta(uint8_t trackID, uint8_t returnType)
 {
-	static volatile uint32_t trackAddr = 0;
-	static volatile uint32_t trackLength = 0;
-	static volatile uint8_t romAddr; // first rom location for track
+	uint32_t trackAddr = 0;
+	uint32_t trackLength = 0;
+	uint8_t romAddr; // first rom location for track
 	
 	romAddr = 8 * (trackID - 1);
 	if (returnType == _ADDRESS)

@@ -47,7 +47,6 @@ TODO::
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 
-#define TP0 LATC0_bit
 #define UWR(x) UART_Write_Text(x);\
 	UART_Write(13);\
 	UART_Write(10);
@@ -68,21 +67,20 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 #define _R3 1
 #define _R7 1
 #define _RESPOND_ERROR 0xff
+
 // Debug define
-/******************************************************************************
-usage:
-#ifdef DEBUG
-{ debug code goes here}
-#else
-{ not debug code goes here}
-#endif
-******************************************************************************/
 //#define DEBUG
 #define WRITE_DEBUG
-#define READ_DEBUG
-#define HOME_TEST
-#define LAB_TEST
+//#define READ_DEBUG
+//#define HOME_TEST
 #define REINIT_MMC
+#define DEBUG_SELECT_TRACK
+#define ADD_TEST_POINT // for determine the sampling frequency
+
+// Sampling rate define (in miliseconds)
+#define _MAXIMUM_RATE 0
+#define _40_KSPS 5
+#define _20_KSPS 10
 
 sbit LCD_RS at LATD0_bit;
 sbit LCD_EN at LATD1_bit;
@@ -120,6 +118,7 @@ const char infPressAnyKey[] = "PRESS ANY KEY!";
 #define SLCT RD2_bit
 #define OK RD3_bit
 #define DACOUT LATB
+#define TP0 LATC0_bit
 
 volatile unsigned char samplingRate = 1;
 volatile unsigned int mode = 0;
@@ -131,6 +130,8 @@ volatile uint8_t spiReadData;
 volatile uint32_t arg = 0;
 volatile uint8_t count;
 volatile uint16_t rejected = 0;
+volatile uint8_t samplingDelay = _MAXIMUM_RATE;
+
 
 /* EEPROM variables for track listing */
 //volatile uint8_t totalTrack = 0; // Total tracks have been recorded
@@ -427,22 +428,23 @@ Returns:
 			spiWrite(0b11111100); // Data token for CMD 25
 			for (g = 0; g < 512; g++)
 			{
-				#ifdef DEBUG
-				
-				#ifdef WRITE_DEBUG // Debug write
-				spiWrite(22);
-				Delay_us(50);
+				#ifdef ADD_TEST_POINT
+				TP0 = 1;
+				Delay_us(1);
+				TP0 = 0;
 				#endif
-				
-				#else // real code
-				
-				#ifdef HOME_TEST // done have a signal generator
-				spiWrite(50);
-				#else // lab test, full equipment
 				spiWrite(adcRead());
-				#endif
-				
-				#endif
+				if (samplingDelay == _MAXIMUM_RATE)
+				{
+				}
+				else if (samplingDelay == _40_KSPS)
+				{
+					Delay_us(_40_KSPS);
+				}
+				else if (samplingDelay == _20_KSPS)
+				{
+					Delay_us(_20_KSPS);
+				}
 			} // write a block of 512 bytes data
 			spiWrite(0xff);
 			spiWrite(0xff); // 2 bytes CRC
@@ -533,14 +535,25 @@ readMultipleBlock(uint32_t address, uint32_t length)
 			// 4. Read 512 bytes of data
 			for (g = 0; g < 512; g++)
 			{
-				#ifdef DEBUG
+				#ifdef READ_DEBUG
 				spiReadData = spiRead();
 				IntToStr(spiReadData, text);
 				UWR(text);
 				Delay_ms(2);
 				#else
 				DACOUT = spiRead();
-				Delay_us(17);
+				if (samplingDelay == _MAXIMUM_RATE)
+				{
+					Delay_us(17);
+				}
+				else if (samplingDelay == _40_KSPS)
+				{
+					Delay_us(17 + _40_KSPS);
+				}
+				else if (samplingDelay == _20_KSPS)
+				{
+					Delay_us(17 + _20_KSPS);
+				}			
 				#endif
 			}
 			// 5. Read 2 bytes CRC
@@ -584,6 +597,7 @@ void main()
 	static volatile uint32_t trackLength = 0;
 	static volatile uint8_t i;
 	static volatile uint8_t trackID = 0;
+	volatile uint8_t lastSelect = 0;
 
 	// adcInit();
 	ADCON1 |= 0x0e; // AIN0 as analog input
@@ -593,7 +607,7 @@ void main()
 	Delay_ms(100);
 
 	/**** END ADC INIT ****/
-	TRISD=0xf3;
+	TRISD = 0xff;
 	TRISA2_bit=1;
 	TRISD2_bit=1;
 	TRISD3_bit=1;
@@ -638,7 +652,7 @@ void main()
 			{
 				Delay_ms(300);
 				mode++;
-				if (mode == 4)
+				if (mode == 5)
 				{
 					mode = 1;
 				}
@@ -654,7 +668,11 @@ void main()
 			}
 			else if ((mode == 3) & (lastMode != mode))
 			{
-				UWR("Tracklist");
+				UWR("Track listing");
+			}
+			else if ((mode == 4) & (lastMode != mode))
+			{
+				UWR("Change sampling rate");
 			}
 			lastMode = mode;					
 		}
@@ -713,12 +731,6 @@ void main()
 				//trackAddr += 1; // first free location
 			}
 			
-			// Convert trackAddr to string
-			LongWordToStr(trackAddr, text);
-			UWR(text);
-			LongWordToStr(59904, text);
-			UWR(text);
-			
 			/* Write a new track */			
 			if (writeMultipleBlock(trackAddr * 512))
 			{
@@ -737,39 +749,53 @@ void main()
 				UWR(text);
 				addTrack(trackAddr, numberOfSectors);
 				UWR("Track added!");
-				trackList();
 			}
 			
 			#else // debug code
-			t = 0;
-			UWR("Writing");
-			PORTB = 0x00;
-			// write to mmc
-			if (writeMultipleBlock(7*512)) // byte address 
-			{
-				UWR("Write error!");
-			}
-			else
-			{
-				UWR("STOPPED!")
-				IntToStr(numberOfSectors, text);
-				UWR("Written:")
-				UWR(text);
-				IntToStr(rejected, text);
-				UWR("Lost: ");
-				UWR(text); // Print out number of recjected sector
-			}
 			#endif
 		}
 
 		else if (mode == 2) // Play
 		{
 			#ifndef DEBUG // realcode
+			#ifdef DEBUG_SELECT_TRACK
+			while (OK == 0);
+			UWR("Which track?");
+			IntToStr(OK, text);
+			UWR(text);
+			totalTrack = readTotalTrack();
+			trackID = 0;
+			i = 0;
+			if (totalTrack != 0)
+			{	
+				while (OK) 			// OK button not pressed
+				{
+					if (!SLCT)
+					{
+						Delay_ms(300);
+						i++;
+						if (i == (totalTrack + 1))
+						{
+							i = 1;
+						}
+					}
+					
+					if (lastSelect != i)
+					{
+						IntToStr(i, text);
+						UWR(text);
+					}
+					
+					lastSelect = i;
+				}
+			}
+			trackID = i;
+			#else
 			trackID = selectTrack();
+			#endif
 			UART_Write_Text("Selected: ");
 			IntToStr(trackID, text);
 			UWR(text);
-			while(1);
 			
 			if (trackID != 0)
 			{
@@ -779,7 +805,7 @@ void main()
 				if (trackLength != 0)
 				{
 					/* Play the track */
-					if (readMultipleBlock(trackAddr, trackLength))
+					if (readMultipleBlock(trackAddr*512, 3))
 					{
 						UWR("Read error!"); 
 					}
@@ -817,6 +843,14 @@ void main()
 			{
 			}
 		}
+		else if (mode == 4) // Change sampling rate
+		{
+			samplingDelay = changeSamplingRate();
+			UWR("Saved!");
+			while (SLCT && OK)
+			{
+			}
+		}
 		/**** END WORKING MODE *******/
 	}
 }
@@ -840,7 +874,7 @@ selectTrack(void)
 	trackID = 0;
 	if (temp != 0)
 	{
-		while (!OK)
+		while (OK)
 		{
 			if (!SLCT)
 			{
@@ -1028,4 +1062,53 @@ uint8_t getResponse(uint8_t type)
 		}
 		while (1); //TODO:: fix
 	}
+}
+
+/******************************************************************************
+uint8_t changeSamplingRate();
+UI to prompt user select sampling rate
+returns: delay amount
+******************************************************************************/
+uint8_t
+changeSamplingRate()
+{
+	static uint8_t select, lastSelect;
+	static uint8_t delay = _MAXIMUM_RATE;
+	
+	select = 1;
+	lastSelect = 0;
+	
+	while (!OK || !SLCT); // make sure none are pressed
+	UWR("Select sampling rate:");
+	while (OK)
+	{
+		if (!SLCT)
+		{
+			Delay_ms(300);
+			select++;
+			if (select == 4)
+			{
+				select == 1;
+			}
+		}
+		
+		if ((select == 1) & (lastSelect != select))
+		{
+			UWR("-- Maximum rate");
+			delay = _MAXIMUM_RATE;
+		}
+		else if ((select == 2) & (lastSelect != select))
+		{
+			UWR("-- 40 Ksps");
+			delay = _40_KSPS;
+		}
+		else if ((select == 3) & (lastSelect != select))
+		{
+			UWR("-- 20 Ksps");
+			delay = _20_KSPS;
+		}
+		
+		lastSelect = select;
+	}
+	return delay;
 }

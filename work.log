@@ -1,7 +1,11 @@
 ﻿#work log
 
+8:05 CH 02/08/2013
+change sampling rate debug
+đưa các block of code thành function cho dễ quản lí
+
 11:06 CH 01/08/2013
-debug selectTrack();
+debug selectTrack(); << done, 90%
 
 3:30 CH 01/08/2013
 Reinit MMC khi write bị lỗi, đã disable bằng condition define 

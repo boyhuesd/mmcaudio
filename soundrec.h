@@ -47,3 +47,5 @@ trackList(void);
 uint32_t
 readTrackMeta(uint8_t trackID, uint8_t returnType);
 
+uint8_t
+changeSamplingRate(void);

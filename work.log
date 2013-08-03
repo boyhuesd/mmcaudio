@@ -1,5 +1,8 @@
 ﻿#work log
 
+#lab
+track manager work, trackSelect() need to be fixed!
+
 8:05 CH 02/08/2013
 change sampling rate debug
 đưa các block of code thành function cho dễ quản lí

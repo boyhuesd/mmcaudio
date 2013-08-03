@@ -544,15 +544,15 @@ readMultipleBlock(uint32_t address, uint32_t length)
 				DACOUT = spiRead();
 				if (samplingDelay == _MAXIMUM_RATE)
 				{
-					Delay_us(17);
+					Delay_us(22);
 				}
 				else if (samplingDelay == _40_KSPS)
 				{
-					Delay_us(17 + _40_KSPS);
+					Delay_us(22 + _40_KSPS);
 				}
 				else if (samplingDelay == _20_KSPS)
 				{
-					Delay_us(17 + _20_KSPS);
+					Delay_us(22 + _20_KSPS);
 				}			
 				#endif
 			}
@@ -805,7 +805,7 @@ void main()
 				if (trackLength != 0)
 				{
 					/* Play the track */
-					if (readMultipleBlock(trackAddr*512, 3))
+					if (readMultipleBlock(trackAddr*512, trackLength))
 					{
 						UWR("Read error!"); 
 					}

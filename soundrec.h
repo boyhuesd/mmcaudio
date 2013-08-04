@@ -6,7 +6,7 @@ getResponse(uint8_t type);
 
 /******************************************************************************
 EEPROM data placement (00h - ffh)
-[8-bits totalTrack][32-bits trackAdd1][32-bits trackLength1][32-bits trackAdd2]
+[8-bits totalTrack][8-bits track1Info][24-bits trackAdd1][32-bits trackLength1]
 
 totalTrack = 0b101xxxxxx - 101 to verify that a real total track
 TODO:: need to write a block that verify totalTrack when the program start, if 
@@ -49,3 +49,12 @@ readTrackMeta(uint8_t trackID, uint8_t returnType);
 
 uint8_t
 changeSamplingRate(void);
+
+uint8_t
+mmcInit(void);
+
+void
+cardInit(uint8_t echo);
+
+#define ECHO_ON 1
+#define ECHO_OFF 0

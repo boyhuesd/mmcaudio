@@ -2,6 +2,7 @@
 
 #lab
 track manager work, trackSelect() need to be fixed!
+cần bổ sung tốc độ lấy mẫu cho track info
 
 8:05 CH 02/08/2013
 change sampling rate debug

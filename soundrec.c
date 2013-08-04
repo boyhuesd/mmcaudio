@@ -1,9 +1,9 @@
-/******************************************************************************
-PIC18F4520 MMC/SD AUDIO RECORDER
-Author: Dat Tran Quoc Le
-******************************************************************************/
+/*
+* PIC18F4520 MMC/SD AUDIO RECORDER
+* Author: Dat Tran Quoc Le
+*/
 
-/******************************************************************************
+/*
 Git command
 git add *
 git add filename.ext
@@ -22,9 +22,9 @@ git checkout master
 git branch -d <branch_name>
 // push branch to server
 git push origin branch
-******************************************************************************/
+*/
 
-/******************************************************************************
+/*
 TODO::
 1. Luu du lieu thanh tung track, track list (dung EEPROM)
 2. Lua chon tan so lay mau
@@ -40,7 +40,7 @@ TODO::
 10. Create a header files that contain information string constant
 11. Write handle when play the whole card in readMultipleBlock()
 12. Display sampling period on oscilloscope.
-******************************************************************************/
+*/
 #include <stdint.h>
 #include "soundrec.h"
 
@@ -77,7 +77,8 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 #define DEBUG_SELECT_TRACK
 #define ADD_TEST_POINT // for determine the sampling frequency
 
-// Sampling rate define (in miliseconds)
+// Sampling rate define (in microseconds)
+#define MMC_READ_DELAY 20
 #define _MAXIMUM_RATE 0
 #define _40_KSPS 5
 #define _20_KSPS 10
@@ -131,6 +132,7 @@ volatile uint32_t arg = 0;
 volatile uint8_t count;
 volatile uint16_t rejected = 0;
 volatile uint8_t samplingDelay = _MAXIMUM_RATE;
+volatile uint8_t text[10];
 
 
 /* EEPROM variables for track listing */
@@ -433,24 +435,35 @@ Returns:
 				Delay_us(1);
 				TP0 = 0;
 				#endif
+				
 				spiWrite(adcRead());
-				if (samplingDelay == _MAXIMUM_RATE)
+				switch (samplingDelay)
 				{
-				}
-				else if (samplingDelay == _40_KSPS)
-				{
-					Delay_us(_40_KSPS);
-				}
-				else if (samplingDelay == _20_KSPS)
-				{
-					Delay_us(_20_KSPS);
+					case _MAXIMUM_RATE:
+					{
+						break;
+					}
+					case _40_KSPS:
+					{
+						Delay_us(_40_KSPS);
+						break;
+					}
+					case _20_KSPS:
+					{
+						Delay_us(_20_KSPS);
+						break;
+					}
+					default:
+					{
+						break;
+					}
 				}
 			} // write a block of 512 bytes data
 			spiWrite(0xff);
 			spiWrite(0xff); // 2 bytes CRC
 			// check if the data is accepted
 			count = 0;
-			while (count < 30)
+			while (count < 100)
 			{
 				spiReadData = spiRead();
 				if ((spiReadData & 0b00011111) == 0x05)
@@ -462,8 +475,10 @@ Returns:
 				}
 				count++;
 			}
-			if (count >= 30)
+			if (count >= 100)
 			{
+				IntToStr(spiReadData, text);
+				UWR(text);
 				UWR("Data rejected!");
 				rejected++;
 			} 			
@@ -501,7 +516,6 @@ uint8_t
 readMultipleBlock(uint32_t address, uint32_t length)
 {
 	volatile uint16_t g;
-	volatile uint8_t text[7];
 	volatile uint16_t sectorIndex = 0;
 	volatile uint8_t error;
 	volatile uint8_t retry = 0;
@@ -544,15 +558,15 @@ readMultipleBlock(uint32_t address, uint32_t length)
 				DACOUT = spiRead();
 				if (samplingDelay == _MAXIMUM_RATE)
 				{
-					Delay_us(22);
+					Delay_us(MMC_READ_DELAY);
 				}
 				else if (samplingDelay == _40_KSPS)
 				{
-					Delay_us(22 + _40_KSPS);
+					Delay_us(MMC_READ_DELAY + _40_KSPS);
 				}
 				else if (samplingDelay == _20_KSPS)
 				{
-					Delay_us(22 + _20_KSPS);
+					Delay_us(MMC_READ_DELAY + _20_KSPS);
 				}			
 				#endif
 			}
@@ -590,8 +604,6 @@ void main()
 {
 	unsigned char select;
 	unsigned char lastMode;
-	volatile uint8_t initRetry = 0;
-	volatile uint8_t text[10];
 	static volatile uint8_t totalTrack;
 	static volatile uint32_t trackAddr; // MMC/SD Addr to write this track
 	static volatile uint32_t trackLength = 0;
@@ -599,7 +611,6 @@ void main()
 	static volatile uint8_t trackID = 0;
 	volatile uint8_t lastSelect = 0;
 
-	// adcInit();
 	ADCON1 |= 0x0e; // AIN0 as analog input
 	ADCON2 |= 0x2d; // 12 Tad and FOSC/16
 	ADFM_bit = 0; // Left justified
@@ -614,38 +625,16 @@ void main()
 	TRISB=0;
 	TRISC = 0x00;
 
-	//Lcd_Init();
 	UART1_Init(9600);
-	// SPI Initialization
-	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
-	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
-	// MMC/SD Initialization
-	while (1)
-	{
-		if (mmcInit() == 0)
-		{	
-			UWR("Card detected!");
-			break;
-		}
-		initRetry++;
-		if (initRetry == 50)
-		{
-			UWR("Card error, CPU trapped!");
-			while (1); // Trap the CPU
-		}
-	}
-	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
-	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+	cardInit(ECHO_ON);
 
-	for ( ; ; )        // Repeats forever
+	for (;;)        /* Repeat forever */
 	{
 		/****** REWRITE NEW SETUP UI ******/
-		while (SLCT != 0)        // Wait until SELECT pressed
+		while (SLCT != 0)        /* Wait until SELECT pressed */
 		{
 		}
 		UWR("Select a Menu");
-		IntToStr(OK, text);
-		UWR(text);
 		while (OK)
 		{
 			if (!SLCT)
@@ -685,30 +674,8 @@ void main()
 			t = 0;
 			UWR("Writing");
 			PORTB = 0x00;
-			
 			#ifdef REINIT_MMC
-			
-			// SPI Re-Initialization
-			SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
-			_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
-			
-			// MMC/SD Re-Initialization
-			while (1)
-			{
-				if (mmcInit() == 0)
-				{	
-					UWR("Card detected!");
-					break;
-				}
-				initRetry++;
-				if (initRetry == 50)
-				{
-					UWR("Card error, CPU trapped!");
-					while (1); // Trap the CPU
-				}
-			}
-			SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
-			_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+			cardInit(ECHO_ON);
 			#endif
 			
 			/* Read total track to determine the address to write this track */
@@ -728,7 +695,6 @@ void main()
 					UWR(text);
 					trackAddr = trackAddr + readTrackMeta(i, _LENGTH); 
 				}
-				//trackAddr += 1; // first free location
 			}
 			
 			/* Write a new track */			
@@ -761,8 +727,6 @@ void main()
 			#ifdef DEBUG_SELECT_TRACK
 			while (OK == 0);
 			UWR("Which track?");
-			IntToStr(OK, text);
-			UWR(text);
 			totalTrack = readTotalTrack();
 			trackID = 0;
 			i = 0;
@@ -834,11 +798,6 @@ void main()
 		else if (mode == 3) // track listing
 		{
 			tracklist();
-			for (i = 0; i < 48; i++)
-			{
-				IntToStr(EEPROM_Read(i), text);
-				UART_Write_Text(text);
-			}
 			while (SLCT && OK) // return to main menu
 			{
 			}
@@ -866,7 +825,6 @@ selectTrack(void)
 {
 	uint8_t temp = 0;
 	uint8_t trackID;
-	uint8_t text[7];
 	uint8_t i = 1;
 	
 	UWR("Which track to play?");
@@ -949,7 +907,6 @@ readTotalTrack(void)
 void
 trackList(void)
 {
-	uint8_t text[10];
 	uint8_t tTrack;
 	uint8_t t;
 	uint8_t temp;
@@ -1088,7 +1045,7 @@ changeSamplingRate()
 			select++;
 			if (select == 4)
 			{
-				select == 1;
+				select = 1;
 			}
 		}
 		
@@ -1111,4 +1068,36 @@ changeSamplingRate()
 		lastSelect = select;
 	}
 	return delay;
+}
+
+void cardInit(uint8_t echo)
+{
+	uint8_t initRetry = 0;
+	
+	/* SPI Re-init */
+	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
+	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+	
+	/* MMC/SD Re-Initialization */
+	while (1)
+	{
+		if (mmcInit() == 0)
+		{	
+			if (echo == ECHO_ON)
+			{
+				UWR("Card detected!");
+			}
+			break;
+		}
+		initRetry++;
+		if (initRetry == 50)
+		{
+			UWR("Card error, CPU trapped!");
+			while (1); // Trap the CPU
+		}
+	}
+	
+	/* Change SPI clock to maximum */
+	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
+	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 }

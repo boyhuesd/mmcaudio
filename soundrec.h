@@ -58,3 +58,9 @@ cardInit(uint8_t echo);
 
 #define ECHO_ON 1
 #define ECHO_OFF 0
+
+
+/* Defines for sampling rate encoded to EEPROM */
+#define ENC_MAXIMUM_RATE 0
+#define ENC_22_KSPS 1
+#define ENC_16_KSPS 2

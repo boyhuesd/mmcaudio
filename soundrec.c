@@ -25,21 +25,21 @@ git push origin branch
 */
 
 /*
-TODO::
-1. Luu du lieu thanh tung track, track list (dung EEPROM)
-2. Lua chon tan so lay mau
-3. Data reject handling
-4. Noise supression
-5. Check if the card address argument is byte-address or block-address?!!!
->>> block for SDC v2, byte otherwise
-6. !Write track metadata to MMC/SD, not EEPROM!
-7. Rewrite MMC/SD Init fucntion to support more card
-8. Add feature to keep or discard a track when recorded successful.
-9. Write an UI that ask for which track to play.
->>> Done, debug it!
-10. Create a header files that contain information string constant
-11. Write handle when play the whole card in readMultipleBlock()
-12. Display sampling period on oscilloscope.
+* TODO::
+* 1. Luu du lieu thanh tung track, track list (dung EEPROM)
+* 2. Lua chon tan so lay mau
+* 3. Data reject handling
+* 4. Noise supression
+* 5. Check if the card address argument is byte-address or block-address?!!!
+* >>> block for SDC v2, byte otherwise
+* 6. !Write track metadata to MMC/SD, not EEPROM!
+* 7. Rewrite MMC/SD Init fucntion to support more card
+* 8. Add feature to keep or discard a track when recorded successful.
+* 9. Write an UI that ask for which track to play.
+* >>> Done, debug it!
+* 10. Create a header files that contain information string constant
+* 11. Write handle when play the whole card in readMultipleBlock()
+* 12. Display sampling period on oscilloscope.
 */
 #include <stdint.h>
 #include "soundrec.h"
@@ -78,10 +78,11 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 #define ADD_TEST_POINT // for determine the sampling frequency
 
 // Sampling rate define (in microseconds)
+#define MEASURED_SAMPLING_PERIOD 31 /* Measured by oscilloscope */
 #define MMC_READ_DELAY 21
 #define _MAXIMUM_RATE 0
-#define _40_KSPS 14 /* actually it is for 22 ksps */
-#define _20_KSPS 10
+#define _22_KSPS (45 - MEASURED_SAMPLING_PERIOD)
+#define _16_KSPS (62 - MEASURED_SAMPLING_PERIOD)
 
 const char infProgName[] = "AUDIO RECORDER";
 const char infPressSelect[] = "PRESS SELECT!";
@@ -106,7 +107,7 @@ const char infPressAnyKey[] = "PRESS ANY KEY!";
 #define DACOUT LATB
 #define TP0 LATD7_bit
 
-volatile unsigned char samplingRate = 1;
+//volatile unsigned char samplingRate = 1;
 volatile unsigned int mode = 0;
 volatile unsigned int t = 0;
 volatile unsigned char x;
@@ -429,14 +430,14 @@ Returns:
 					{
 						break;
 					}
-					case _40_KSPS:
+					case _22_KSPS:
 					{
-						Delay_us(_40_KSPS);
+						Delay_us(_22_KSPS);
 						break;
 					}
-					case _20_KSPS:
+					case _16_KSPS:
 					{
-						Delay_us(_20_KSPS);
+						Delay_us(_16_KSPS);
 						break;
 					}
 					default:
@@ -489,18 +490,18 @@ Returns:
 }
 
 
-/******************************************************************************
-uint8_t readMultipleBlock(uint32_t address, uint32_t length);
-Function to read multiple block from MMC/SD
-address : bye address to read (track address)
-length: number of bytes to read (track length)
-
-returns: 
-	0: success
-	1: error
-******************************************************************************/
+/*
+* uint8_t readMultipleBlock(uint32_t address, uint32_t length);
+* Function to read multiple block from MMC/SD
+* address : bye address to read (track address)
+* length: number of bytes to read (track length)
+* 
+* returns: 
+* 	0: success
+* 	1: error
+*/
 uint8_t
-readMultipleBlock(uint32_t address, uint32_t length)
+readMultipleBlock(uint8_t samplingRate, uint32_t address, uint32_t length)
 {
 	volatile uint16_t g;
 	volatile uint16_t sectorIndex = 0;
@@ -542,20 +543,26 @@ readMultipleBlock(uint32_t address, uint32_t length)
 				UWR(text);
 				Delay_ms(2);
 				#else
-				TP0 = 1;
+				TP0 = 1; /* Testpoint goes high */
+				
+				/* Read a byte and output to the DAC */
 				DACOUT = spiRead();
-				TP0 = 0;
-				if (samplingDelay == _MAXIMUM_RATE)
+				
+				/* Delay to meet the sampling period */
+				switch (samplingRate)
 				{
-					Delay_us(MMC_READ_DELAY);
-				}
-				else if (samplingDelay == _40_KSPS)
-				{
-					Delay_us(MMC_READ_DELAY + _40_KSPS);
-				}
-				else if (samplingDelay == _20_KSPS)
-				{
-					Delay_us(MMC_READ_DELAY + _20_KSPS);
+					case ENC_MAXIMUM_RATE:
+					{
+						Delay_us(MMC_READ_DELAY);
+					}
+					case ENC_22_KSPS:
+					{
+						Delay_us(MMC_READ_DELAY + _22_KSPS);
+					}
+					case ENC_16_KSPS:
+					{
+						Delay_us(MMC_READ_DELAY + _16_KSPS);
+					}
 				}
 				#endif
 			}
@@ -591,7 +598,6 @@ readMultipleBlock(uint32_t address, uint32_t length)
 
 void main()
 {
-	unsigned char select;
 	unsigned char lastMode;
 	static volatile uint8_t totalTrack;
 	static volatile uint32_t trackAddr; // MMC/SD Addr to write this track
@@ -599,6 +605,8 @@ void main()
 	static volatile uint8_t i;
 	static volatile uint8_t trackID = 0;
 	volatile uint8_t lastSelect = 0;
+	uint8_t trackSamplingRate = ENC_MAXIMUM_RATE; /* Encoded track sampling rate
+													in EEPROM */
 
 	ADCON1 |= 0x0e; // AIN0 as analog input
 	ADCON2 |= 0x2d; // 12 Tad and FOSC/16
@@ -711,7 +719,8 @@ void main()
 			#endif
 		}
 
-		else if (mode == 2) // Play
+		/* Play mode */
+		else if (mode == 2) 
 		{
 			#ifndef DEBUG // realcode
 			#ifdef DEBUG_SELECT_TRACK
@@ -756,10 +765,15 @@ void main()
 				/* Get track address and track length */
 				trackAddr = readTrackMeta(trackID, _ADDRESS);
 				trackLength = readTrackMeta(trackID, _LENGTH);
+				
+				/* Get track sampling rate from track address */
+				trackSamplingRate = (uint8_t) (trackAddr >> 29);
+				
 				if (trackLength != 0)
 				{
 					/* Play the track */
-					if (readMultipleBlock(trackAddr*512, trackLength))
+					if (readMultipleBlock(trackSamplingRate, trackAddr*512, 	
+					trackLength))
 					{
 						UWR("Read error!"); 
 					}
@@ -848,15 +862,42 @@ selectTrack(void)
 	}
 }
 
-
+/*
+* void addTrack(uint32_t address, uint32_t length)
+* Caution! Sampling rate will be place at 8MSBs in address.
+* This function add the track to tracklist on EEPROM.
+* Arguments: address: 32 bit address of the track
+* 			 length: 32 bit length of the track
+* Returns: none
+*/
 void
 addTrack(uint32_t address, uint32_t length)
 {
 	static volatile uint8_t romAddr;
 	static volatile uint8_t totalTrack;
 	
+	/* Encode the sampling rate to address's first octet */
+	address &= 0x1fffffff; /* Clear the first 3 MSBs */
+	switch (samplingDelay)
+	{
+		case _MAXIMUM_RATE:
+		{
+			address |= (ENC_MAXIMUM_RATE << 29);
+			break;
+		}
+		case _22_KSPS:
+		{
+			address |= (ENC_22_KSPS << 29);
+			break;
+		}
+		case _16_KSPS:
+		{
+			address |= (ENC_16_KSPS << 29);
+		}
+	}
+	
 	totalTrack = EEPROM_Read(0x00) & 0b000111111; // Read the totalTrack value
-	romAddr = 8*totalTrack; // address to place new track metadata
+	romAddr = 8*totalTrack; // Address to place new track metadata
 	/* Write new track address */
 	EEPROM_Write((romAddr + 1), (uint8_t) (address >> 24)); // MSB first
 	EEPROM_Write((romAddr + 2), (uint8_t) (address >> 16));
@@ -1047,12 +1088,12 @@ changeSamplingRate()
 		else if ((select == 2) & (lastSelect != select))
 		{
 			UWR("-- 22 Ksps");
-			delay = _40_KSPS;
+			delay = _22_KSPS;
 		}
 		else if ((select == 3) & (lastSelect != select))
 		{
-			UWR("-- 20 Ksps");
-			delay = _20_KSPS;
+			UWR("-- 16 Ksps");
+			delay = _16_KSPS;
 		}
 		
 		lastSelect = select;

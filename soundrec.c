@@ -84,24 +84,6 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 #define _22_KSPS (45 - MEASURED_SAMPLING_PERIOD)
 #define _16_KSPS (62 - MEASURED_SAMPLING_PERIOD)
 
-const char infProgName[] = "AUDIO RECORDER";
-const char infPressSelect[] = "PRESS SELECT!";
-const char infModeSlct[] = "CHOOSE A MENU";
-const char infSamplingSelect[] = "SLCT SMPLNG RATE";
-const char infSamplingSelected[] = "SMPLNG RATE SLCTD";
-const char inf8Ksps[] = "8 KSPS";
-const char inf16Ksps[] = "16 KSPS";
-const char infMax[] = "MAXIMUM";
-const char infMMCDttng[] = "DETECTING MMC";
-const char infMMCDttd[] = "MMC DETECTED";
-const char infWrtng[] = "RECORDING!";
-const char infRdng[] = "PLAYING";
-const char infWrt[] = "RECORD";
-const char infRd[] = "PLAY  ";
-const char infPressToStop[] = "PRSS SLCT TO STP";
-const char infStopped[] = "STOPPED";
-const char infPressAnyKey[] = "PRESS ANY KEY!";
-
 #define SLCT RD2_bit
 #define OK RD3_bit
 #define DACOUT LATB

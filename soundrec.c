@@ -78,25 +78,10 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 #define ADD_TEST_POINT // for determine the sampling frequency
 
 // Sampling rate define (in microseconds)
-#define MMC_READ_DELAY 20
+#define MMC_READ_DELAY 21
 #define _MAXIMUM_RATE 0
-#define _40_KSPS 5
+#define _40_KSPS 14 /* actually it is for 22 ksps */
 #define _20_KSPS 10
-
-sbit LCD_RS at LATD0_bit;
-sbit LCD_EN at LATD1_bit;
-sbit LCD_D7 at LATD7_bit;
-sbit LCD_D6 at LATD6_bit;
-sbit LCD_D5 at LATD5_bit;
-sbit LCD_D4 at LATD4_bit;
-
-
-sbit LCD_RS_Direction at TRISD0_bit;
-sbit LCD_EN_Direction at TRISD1_bit;
-sbit LCD_D7_Direction at TRISD7_bit;
-sbit LCD_D6_Direction at TRISD6_bit;
-sbit LCD_D5_Direction at TRISD5_bit;
-sbit LCD_D4_Direction at TRISD4_bit;
 
 const char infProgName[] = "AUDIO RECORDER";
 const char infPressSelect[] = "PRESS SELECT!";
@@ -119,7 +104,7 @@ const char infPressAnyKey[] = "PRESS ANY KEY!";
 #define SLCT RD2_bit
 #define OK RD3_bit
 #define DACOUT LATB
-#define TP0 LATC0_bit
+#define TP0 LATD7_bit
 
 volatile unsigned char samplingRate = 1;
 volatile unsigned int mode = 0;
@@ -430,12 +415,13 @@ Returns:
 			spiWrite(0b11111100); // Data token for CMD 25
 			for (g = 0; g < 512; g++)
 			{
-				#ifdef ADD_TEST_POINT
+				#ifndef ADD_TEST_POINT
 				TP0 = 1;
 				Delay_us(1);
 				TP0 = 0;
 				#endif
 				
+				TP0 = 1;
 				spiWrite(adcRead());
 				switch (samplingDelay)
 				{
@@ -458,6 +444,7 @@ Returns:
 						break;
 					}
 				}
+				TP0 = 0;
 			} // write a block of 512 bytes data
 			spiWrite(0xff);
 			spiWrite(0xff); // 2 bytes CRC
@@ -555,7 +542,9 @@ readMultipleBlock(uint32_t address, uint32_t length)
 				UWR(text);
 				Delay_ms(2);
 				#else
+				TP0 = 1;
 				DACOUT = spiRead();
+				TP0 = 0;
 				if (samplingDelay == _MAXIMUM_RATE)
 				{
 					Delay_us(MMC_READ_DELAY);
@@ -567,7 +556,7 @@ readMultipleBlock(uint32_t address, uint32_t length)
 				else if (samplingDelay == _20_KSPS)
 				{
 					Delay_us(MMC_READ_DELAY + _20_KSPS);
-				}			
+				}
 				#endif
 			}
 			// 5. Read 2 bytes CRC
@@ -622,6 +611,7 @@ void main()
 	TRISA2_bit=1;
 	TRISD2_bit=1;
 	TRISD3_bit=1;
+	TRISD7_bit = 0;
 	TRISB=0;
 	TRISC = 0x00;
 
@@ -1056,7 +1046,7 @@ changeSamplingRate()
 		}
 		else if ((select == 2) & (lastSelect != select))
 		{
-			UWR("-- 40 Ksps");
+			UWR("-- 22 Ksps");
 			delay = _40_KSPS;
 		}
 		else if ((select == 3) & (lastSelect != select))

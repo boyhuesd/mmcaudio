@@ -62,6 +62,7 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 // EEPROM Fucntion definition
 #define _LENGTH 1
 #define _ADDRESS 0
+#define _TRACK_SAMPLING_RATE 2
 // respond type
 #define _R1 0
 #define _R3 1
@@ -79,7 +80,7 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 
 // Sampling rate define (in microseconds)
 #define MEASURED_SAMPLING_PERIOD 31 /* Measured by oscilloscope */
-#define MMC_READ_DELAY 21
+#define MMC_READ_DELAY 20
 #define _MAXIMUM_RATE 0
 #define _22_KSPS (45 - MEASURED_SAMPLING_PERIOD)
 #define _16_KSPS (62 - MEASURED_SAMPLING_PERIOD)
@@ -525,7 +526,7 @@ readMultipleBlock(uint8_t samplingRate, uint32_t address, uint32_t length)
 				UWR(text);
 				Delay_ms(2);
 				#else
-				TP0 = 1; /* Testpoint goes high */
+				TP0 = 1; /* Testpoint goes HIGH */
 				
 				/* Read a byte and output to the DAC */
 				DACOUT = spiRead();
@@ -536,16 +537,21 @@ readMultipleBlock(uint8_t samplingRate, uint32_t address, uint32_t length)
 					case ENC_MAXIMUM_RATE:
 					{
 						Delay_us(MMC_READ_DELAY);
+						break;
 					}
 					case ENC_22_KSPS:
 					{
 						Delay_us(MMC_READ_DELAY + _22_KSPS);
+						break;
 					}
 					case ENC_16_KSPS:
 					{
 						Delay_us(MMC_READ_DELAY + _16_KSPS);
+						break;
 					}
 				}
+				
+				TP0 = 0; /* Test point goes LOW */
 				#endif
 			}
 			// 5. Read 2 bytes CRC
@@ -662,6 +668,12 @@ void main()
 			trackAddr = 0;
 			totalTrack = readTotalTrack();
 			
+			#ifndef DEBUG
+			IntToStr(totalTrack, text);
+			UART_Write_Text("Total track: ");
+			UWR(text);
+			#endif
+			
 			if (totalTrack == 0) // Card is empty
 			{
 				trackAddr = 0; //  write on the beginning.
@@ -671,11 +683,15 @@ void main()
 				/* Determine first free sector */
 				for (i = 1; i <= totalTrack; i++)
 				{
-					IntToStr(readTrackMeta(i, _LENGTH), text);
-					UWR(text);
 					trackAddr = trackAddr + readTrackMeta(i, _LENGTH); 
 				}
 			}
+			
+			#ifndef DEBUG
+			UART_Write_Text("New track Address: ");
+			LongWordToStr(trackAddr, text);
+			UWR(text);
+			#endif
 			
 			/* Write a new track */			
 			if (writeMultipleBlock(trackAddr * 512))
@@ -748,8 +764,9 @@ void main()
 				trackAddr = readTrackMeta(trackID, _ADDRESS);
 				trackLength = readTrackMeta(trackID, _LENGTH);
 				
-				/* Get track sampling rate from track address */
-				trackSamplingRate = (uint8_t) (trackAddr >> 29);
+				/* Get track sampling rate */
+				trackSamplingRate = (uint8_t) (readTrackMeta(trackID,\
+				_TRACK_SAMPLING_RATE));
 				
 				if (trackLength != 0)
 				{
@@ -784,6 +801,12 @@ void main()
 		else if (mode == 3) // track listing
 		{
 			tracklist();
+			for (i = 0; i < 40; i++)
+			{
+				IntToStr(EEPROM_Read(i), text);
+				UART_Write_Text(text);
+			}
+			UWR("");
 			while (SLCT && OK) // return to main menu
 			{
 			}
@@ -875,9 +898,9 @@ addTrack(uint32_t address, uint32_t length)
 		case _16_KSPS:
 		{
 			address |= (ENC_16_KSPS << 29);
+			break;
 		}
 	}
-	
 	totalTrack = EEPROM_Read(0x00) & 0b000111111; // Read the totalTrack value
 	romAddr = 8*totalTrack; // Address to place new track metadata
 	/* Write new track address */
@@ -961,31 +984,40 @@ trackList(void)
 uint32_t
 readTrackMeta(uint8_t trackID, uint8_t returnType)
 {
-	uint32_t trackAddr = 0;
-	uint32_t trackLength = 0;
+	uint32_t returnInfo = 0;
 	uint8_t romAddr; // first rom location for track
 	
 	romAddr = 8 * (trackID - 1);
-	if (returnType == _ADDRESS)
+	switch (returnType)
 	{
-		trackAddr |= (uint32_t) (EEPROM_Read(romAddr + 1) << 24); // MSB
-		trackAddr |= (uint32_t) (EEPROM_Read(romAddr + 2) << 16);
-		trackAddr |= (uint32_t) (EEPROM_Read(romAddr + 3) << 8);
-		trackAddr |= (uint32_t) (EEPROM_Read(romAddr + 4)); // LSB
-		return trackAddr;
+		case _ADDRESS:
+		{
+			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 1) << 24); // MSB
+			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 2) << 16);
+			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 3) << 8);
+			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 4)); // LSB
+			returnInfo &= 0x1fffffff; /* Clear 3 MSBs */
+			break;
+		}
+		case _LENGTH:
+		{
+			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 5) << 24); // MSB
+			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 6) << 16);
+			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 7) << 8);
+			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 8)); // LSB
+			break;
+		}
+		case _TRACK_SAMPLING_RATE:
+		{
+			returnInfo = (uint32_t) (EEPROM_Read(romAddr + 1) >> 5);
+			break;
+		}
+		default:
+		{
+			break;
+		}
 	}
-	else if (returnType == _LENGTH)
-	{
-		trackLength |= (uint32_t) (EEPROM_Read(romAddr + 5) << 24); // MSB
-		trackLength |= (uint32_t) (EEPROM_Read(romAddr + 6) << 16);
-		trackLength |= (uint32_t) (EEPROM_Read(romAddr + 7) << 8);
-		trackLength |= (uint32_t) (EEPROM_Read(romAddr + 8)); // LSB
-		return trackLength;		
-	}
-	else
-	{
-		return 0; // ERROR
-	}
+	return returnInfo;
 }
 
 /******************************************************************************

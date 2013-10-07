@@ -90,6 +90,16 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 #define DACOUT LATB
 #define TP0 LATD7_bit
 
+
+/**
+* VARIABLE DECLARATION
+*/
+volatile uint16_t buffer0[512];			/* Buffers for ADC result storage */
+volatile uint16_t buffer1[512];
+uint16_t *ptr;
+volatile uint8_t currentBuffer = 0;
+volatile uint8_t bufferFull = 0;
+
 //volatile unsigned char samplingRate = 1;
 volatile unsigned int mode = 0;
 volatile unsigned int t = 0;
@@ -102,6 +112,12 @@ volatile uint8_t count;
 volatile uint16_t rejected = 0;
 volatile uint8_t samplingDelay = _MAXIMUM_RATE;
 volatile uint8_t text[10];
+
+
+/**
+* FUNCTION DECLARATION
+*/
+void specialEventTriggerSetup(void);
 
 
 /* EEPROM variables for track listing */
@@ -1145,4 +1161,133 @@ void cardInit(uint8_t echo)
 	/* Change SPI clock to maximum */
 	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
 	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+}
+
+
+/**
+* This function setup the CCP2 module as an A/D conversion trigger.
+*/
+void specialEventTriggerSetup(void)
+{
+	/* Compare mode, trigger sepcial event */
+	CCP2CON = (1 << CCP2M3) | (1 << CCP2M1) | (1 << CC2P2M0);
+	
+	/* Timer 3 as clock source
+		with 1:8 clock prescaler */
+	T3CON = (1 << T3CCP2) | (1 << T3CKPS1) | (1 << T3CKPS0);
+	
+	/* Compare value: 15625 (0x3d09) for 25ms period *//
+	CCPR2H = 0x3d;
+	CCPR2L = 0x09;
+}
+
+/**
+* This function start the Timer 3 for special event trigger.
+*/
+void specialEventTriggerStart(void)
+{
+	T3CON |= (1 << TMR3ON);
+}
+
+/**
+* Init the ADC module
+* 	with AIN0 as analog input
+* 	12 Tad and FOSC/16
+* 	left justified result
+*/
+void adcInit(void)
+{
+	ADCON1 = 0x0e;						
+	ADCON2 = 0x2d;						
+	ADCON2 |= (1 << ADFM);			
+	ADCON0 |= (1 << ADON);	
+
+	/* Enable ADC interrupt */
+	PIE1 |= (1 << ADIE);
+}
+
+/**
+* A/D conversion interrupt routine
+* This move the ADC result to the buffer array.
+*/
+void interrupt(void)
+{
+	if (PIR1 & (1 << ADIF)) 
+	{
+		/* Move the result to buffer */
+		*(ptr++) = (ADRESH << 8) + ADRESL;
+		
+		/* Swap the buffer */
+		if (ptr == 512)					
+		{
+			bufferFull = 1;
+			if (currentBuffer == 0)
+			{
+				ptr = buffer1;
+				currentBuffer = 1;
+			}
+			else
+			{
+				ptr = buffer0;
+				currentBuffer = 0;
+			}
+		}
+	}
+}
+
+/**
+*	Recording function
+*/
+void record(void)
+{
+	
+}
+
+/**
+*	Write init
+* 	This function init the writing procedure to the card with write mode is 
+*	single or multiple blocks.
+*/
+uint8_t writeInit(uint8_t writeMode, uint32_t address)
+{
+	uint8_t retry;
+	
+	if (writeMode == _MULTIPLE_BLOCK)
+	{
+		while (retry < 50)
+		{
+			if (!(sendCMD(25, address)))
+			{
+				error = 0;
+				break;
+			}
+			else
+			{
+				error = 1;
+				retry++;
+			}
+		}
+	}
+	else 
+	{
+		// TODO wire single block init code goes here
+	}
+	
+	if (!error)
+	{
+		spiWrite(0xff);						/* Dummy clock */
+		spiWrite(0xff);
+		spiWrite(0xff);
+		return 0;
+	}
+	else
+	{
+		return 1;
+	}
+}
+
+uint8_t write(uint8_t writeMode)
+{
+	spiWrite(0b11111100);					/* Data token for CMD 25 */
+	
 }

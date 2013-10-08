@@ -42,56 +42,9 @@ git push origin branch
 * 12. Display sampling period on oscilloscope.
 */
 #include <stdint.h>
+#include "mmc.h"
 #include "soundrec.h"
-
-sfr sbit Mmc_Chip_Select at LATC2_bit;
-sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
-
-#define UWR(x) UART_Write_Text(x);\
-	UART_Write(13);\
-	UART_Write(10);
-
-// function aliases
-#define spiWrite(x) SPI1_Write(x)
-#define spiRead() SPI1_Read(0xff)
-
-// Error definition
-#define initERROR_CMD0 1
-#define initERROR_CMD1 2
-#define initERROR_CMD16 3
-// EEPROM Fucntion definition
-#define _LENGTH 1
-#define _ADDRESS 0
-#define _TRACK_SAMPLING_RATE 2
-// respond type
-#define _R1 0
-#define _R3 1
-#define _R7 1
-#define _RESPOND_ERROR 0xff
-
-// Debug define
-//#define DEBUG
-#define WRITE_DEBUG
-//#define READ_DEBUG
-//#define HOME_TEST
-#define REINIT_MMC
-#define DEBUG_SELECT_TRACK
-#define ADD_TEST_POINT // for determine the sampling frequency
-
-// Sampling rate define (in microseconds)
-#define MEASURED_SAMPLING_PERIOD 31 /* Measured by oscilloscope */
-#define MMC_READ_DELAY 20
-#define _MAXIMUM_RATE 0
-#define _22_KSPS (45 - MEASURED_SAMPLING_PERIOD)
-#define _16_KSPS (62 - MEASURED_SAMPLING_PERIOD)
-
-#define SLCT RD2_bit
-#define OK RD3_bit
-#define DACOUT LATB
-#define TP0 LATD7_bit
-
-#define _MULTIPLE_BLOCK 1
-
+#include "global.h"
 
 /**
 * VARIABLE DECLARATION
@@ -149,414 +102,6 @@ adcRead(void)
 	return ADRESH;
 }
 /*********** END ADC *****************/
-
-/******************************************************************************
-MMC functions: 
-- command(command, fourbyte_arg, CRCbits)
-- writeSingleBlock() : write a single block
-******************************************************************************/
-void
-command(char command, uint32_t fourbyte_arg, char CRCbits)
-{
-	spiWrite(0xff);
-	spiWrite(0b01000000 | command);
-	spiWrite((uint8_t) (fourbyte_arg >> 24));
-	spiWrite((uint8_t) (fourbyte_arg >> 16));
-	spiWrite((uint8_t) (fourbyte_arg >> 8));
-	spiWrite((uint8_t) (fourbyte_arg));
-	spiWrite(CRCbits);
-	spiReadData = spiRead();
-}
-
-
-void
-writeSingleBlock(void)
-{
-	uint16_t g = 0;
-	spiWrite(0xff);
-	// check if the card is ready to receive command
-	spiReadData = spiRead();
-	while (spiReadData != 0xff)
-	{
-		spiReadData = spiRead();
-		UWR("Card busy!");
-	}
-	// Send CMD 24 to write single block
-	command(24, arg, 0x95);
-	// verify R1
-	while (spiReadData != 0)
-	{
-		spiReadData = spiRead();
-	}
-	UWR("Command accepted!");
-	spiWrite(0xff);
-	spiWrite(0xff);
-	spiWrite(0b11111110); // Data token for CMD 24
-	for (g = 0; g < 512; g++)
-	{
-		spiWrite(0x50);
-	}
-	spiWrite(0xff);
-	spiWrite(0xff);
-	spiReadData = spiRead();
-	// check if the block is accepted
-	count = 0;
-	while (count < 10)
-	{
-		if ((spiReadData & 0b00011111) == 0x05)
-		{
-			UWR("Data accepted!");
-			break;
-		}
-		spiReadData = spiRead();
-		count++;
-	}
-	if (count >= 10)
-	{
-		UWR("Data rejected!");
-	}
-	spiReadData = spiRead();
-	while (spiReadData != 0xff)
-	{
-		spiReadData = spiRead();
-	}
-	UWR("Card is idle");
-}
-
-void
-readSingleBlock(void)
-{
-	volatile uint16_t numOfBytes;
-	volatile uint8_t strData[7];
-	spiWrite(0xff);
-	spiReadData = spiRead();
-	while (spiReadData != 0xff)
-	{
-		spiReadData = spiRead();
-		UWR("Card busy!");
-	}
-	// Send CMD 17 to read single block
-	command(17, arg, 0x95); // read 512 bytes from byte address 0
-	// Verify R1
-	count = 0;
-	while (count < 10)
-	{
-		spiReadData = spiRead();
-		if (spiReadData == 0)
-		{
-			UWR("CMD accepted!");
-			break;
-		}
-		count++;
-	}
-	if (count >= 10)
-	{
-		UWR("CMD Rejected!");
-		while (1); // Trap the CPU
-	}
-	// continue to read until data token received
-	while (spiReadData != 0xfe)
-	{
-		spiReadData = spiRead();
-	}
-	UWR("Token received!");
-	// received a single block
-	for (numOfBytes = 0; numOfBytes < 512; numOfBytes++)
-	{
-		spiReadData = spiRead();
-		IntToStr(spiReadData, strData);
-		UWR(strData);
-		DACOUT = spiReadData;
-		Delay_ms(2);
-	}
-	// receive CRC;
-	spiReadData = spiRead();
-	spiReadData = spiRead();
-	UWR("DONE!");
-}
-
-// better command sending function
-/******************************************************************************
-Send Command to the MMC/SD
-Arguments: uint8_t cmd, uint32_t arg
-Returns:
-	0 : sucesss
-	1 : error
-******************************************************************************/
-uint8_t
-sendCMD(uint8_t cmd, uint32_t arg)
-{
-	uint8_t retryTimes = 0;
-	
-	// check if the card is ready to receive command
-	spiWrite(0xff);
-	do 
-	{
-		spiReadData = spiRead();
-	}
-	while (spiReadData != 0xff);
-	//UWR("Card free!");
-	
-	// Send the CMD
-	spiWrite(0b01000000 | cmd);
-	spiWrite((uint8_t) (arg >> 24));
-	spiWrite((uint8_t) (arg >> 16));
-	spiWrite((uint8_t) (arg >> 8));
-	spiWrite((uint8_t) arg);
-	spiWrite(0x95); // default CRC for SPI protocol
-	spiReadData = spiRead();
-	
-	while (retryTimes < 10)
-	{
-		if (spiReadData == 0)
-		{
-			break;
-		}
-		spiReadData = spiRead();
-		retryTimes++;
-	}
-	
-	if (retryTimes >= 10)
-	{
-		return 1; // command rejected
-	}
-	else
-	{
-		return 0; // command accepted
-	}
-}
-
-uint8_t
-writeMultipleBlock(uint32_t address)
-/******************************************************************************
-Write multiple block of data to the MMC/SD.
-address: address location begin to write (byte address mode only)
-numberOfSectors should be used as track length
-
-Returns:
-	0 if successful.
-	1 write error.
-******************************************************************************/
-{
-	volatile uint16_t g;
-	volatile uint8_t retry;
-	volatile uint8_t error;
-	
-	retry = 0;
-	error = 0;
-	do 
-	{
-		if (!(sendCMD(25, address))) // write command accepted
-		{
-			error = 0;
-			break;
-		}
-		else
-		{
-			error = 1;
-			Delay_ms(100);
-			UWR("CMD error!");
-			retry++;
-		}
-	}
-	while (retry < 50);
-	
-	if (!error)
-	{
-		spiWrite(0xff);
-		spiWrite(0xff);
-		spiWrite(0xff); // Dummy clock
-		numberOfSectors = 0; // Initialize the number of sector
-		rejected = 0;
-		while (SLCT) // repeat until Select button pressed
-		{
-			spiWrite(0b11111100); // Data token for CMD 25
-			for (g = 0; g < 512; g++)
-			{
-				#ifndef ADD_TEST_POINT
-				TP0 = 1;
-				Delay_us(1);
-				TP0 = 0;
-				#endif
-				
-				TP0 = 1;
-				spiWrite(adcRead());
-				switch (samplingDelay)
-				{
-					case _MAXIMUM_RATE:
-					{
-						break;
-					}
-					case _22_KSPS:
-					{
-						Delay_us(_22_KSPS);
-						break;
-					}
-					case _16_KSPS:
-					{
-						Delay_us(_16_KSPS);
-						break;
-					}
-					default:
-					{
-						break;
-					}
-				}
-				TP0 = 0;
-			} // write a block of 512 bytes data
-			spiWrite(0xff);
-			spiWrite(0xff); // 2 bytes CRC
-			// check if the data is accepted
-			count = 0;
-			while (count < 100)
-			{
-				spiReadData = spiRead();
-				if ((spiReadData & 0b00011111) == 0x05)
-				{
-					//UWR("Data accepted!");
-					//Delay_us(5);
-					numberOfSectors++;
-					break;
-				}
-				count++;
-			}
-			if (count >= 100)
-			{
-				IntToStr(spiReadData, text);
-				UWR(text);
-				UWR("Data rejected!");
-				rejected++;
-			} 			
-			do // check if the card is busy
-			{
-				spiReadData = spiRead();
-			}
-			while (spiReadData != 0xff);
-		}
-		// if the SLCT button is pressed
-		// write the stop transfer token
-		spiWrite(0b11111101); 
-		spiWrite(0xff);
-		spiReadData = spiRead();
-		while (spiReadData != 0xff) // check if the card is busy
-		{
-			spiReadData = spiRead();
-		}
-	}
-	return error;
-}
-
-
-/*
-* uint8_t readMultipleBlock(uint32_t address, uint32_t length);
-* Function to read multiple block from MMC/SD
-* address : bye address to read (track address)
-* length: number of bytes to read (track length)
-* 
-* returns: 
-* 	0: success
-* 	1: error
-*/
-uint8_t
-readMultipleBlock(uint8_t samplingRate, uint32_t address, uint32_t length)
-{
-	volatile uint16_t g;
-	volatile uint16_t sectorIndex = 0;
-	volatile uint8_t error;
-	volatile uint8_t retry = 0;
-	
-	do 
-	{
-		if (!(sendCMD(18, address))) // read multiple block command accepted
-		{
-			error = 0;
-			break;
-		}
-		else
-		{
-			error = 1;
-			retry++;
-		}
-	}
-	while (retry < 50);
-	
-	if (!error)
-	{
-		while (sectorIndex <= length)
-		{
-			sectorIndex++;
-			// 3. Read until received data token
-			do 
-			{
-				spiReadData = spiRead();
-			}
-			while (spiReadData != 0xfe);
-			// 4. Read 512 bytes of data
-			for (g = 0; g < 512; g++)
-			{
-				#ifdef READ_DEBUG
-				spiReadData = spiRead();
-				IntToStr(spiReadData, text);
-				UWR(text);
-				Delay_ms(2);
-				#else
-				TP0 = 1; /* Testpoint goes HIGH */
-				
-				/* Read a byte and output to the DAC */
-				DACOUT = spiRead();
-				
-				/* Delay to meet the sampling period */
-				switch (samplingRate)
-				{
-					case ENC_MAXIMUM_RATE:
-					{
-						Delay_us(MMC_READ_DELAY);
-						break;
-					}
-					case ENC_22_KSPS:
-					{
-						Delay_us(MMC_READ_DELAY + _22_KSPS);
-						break;
-					}
-					case ENC_16_KSPS:
-					{
-						Delay_us(MMC_READ_DELAY + _16_KSPS);
-						break;
-					}
-				}
-				
-				TP0 = 0; /* Test point goes LOW */
-				#endif
-			}
-			// 5. Read 2 bytes CRC
-			spiReadData = spiRead();
-			spiReadData = spiRead();
-		}
-		// STOP TRANSMISSION
-		// 6. Send stop transmission command
-		command(12, 0, 0x95);
-		count = 0;
-		do
-		{
-			if (spiReadData == 0)
-			{
-				UWR("Stopped Transfer!");
-				break;
-			}
-			spiReadData = spiRead();
-			count++;
-		}
-		while (count < 10);
-		// 7. Read until card is ready
-		do 
-		{
-			spiReadData = spiRead();
-		}
-		while (spiReadData != 0xff);
-		UWR("Card free!");
-	}
-	return error;
-}
 
 void main()
 {
@@ -621,7 +166,7 @@ void main()
 			}
 			else if ((mode == 4) & (lastMode != mode))
 			{
-				UWR("Change sampling rate");
+				UWR("C s r"); 			/* Change sampling rate */
 			}
 			lastMode = mode;					
 		}
@@ -634,7 +179,7 @@ void main()
 			{
 				if (writeInit(_MULTIPLE_BLOCK, 0))
 				{
-					UWR("Write error!");
+					UWR("W!");
 					break;
 				}
 				
@@ -659,7 +204,7 @@ void main()
 			}
 			
 			writeStop();
-			UWR("Write completed!");
+			UWR("Wr!");
 		}
 
 		/* Play mode */
@@ -668,7 +213,7 @@ void main()
 			#ifndef DEBUG // realcode
 			#ifdef DEBUG_SELECT_TRACK
 			while (OK == 0);
-			UWR("Which track?");
+			UWR("Wch?");
 			totalTrack = readTotalTrack();
 			trackID = 0;
 			i = 0;
@@ -699,7 +244,7 @@ void main()
 			#else
 			trackID = selectTrack();
 			#endif
-			UART_Write_Text("Selected: ");
+			UART_Write_Text("Slctd: ");
 			IntToStr(trackID, text);
 			UWR(text);
 			
@@ -719,12 +264,12 @@ void main()
 					if (readMultipleBlock(trackSamplingRate, trackAddr*512, 	
 					trackLength))
 					{
-						UWR("Read error!"); 
+						UWR("R r!"); 
 					}
 				}
 				else
 				{
-					UWR("Track empty!");
+					UWR("pt!");			/* Empty */
 				}
 			}
 			else 
@@ -736,7 +281,7 @@ void main()
 			//read 10 block from address 0
 			if (readMultipleBlock(6*512, 3))
 			{
-				UWR("Read error!"); 
+				UWR("R r!"); 
 			}
 			#endif
 			while (SLCT && OK) // return to main menu
@@ -759,7 +304,7 @@ void main()
 		else if (mode == 4) // Change sampling rate
 		{
 			samplingDelay = changeSamplingRate();
-			UWR("Saved!");
+			UWR("S!");
 			while (SLCT && OK)
 			{
 			}
@@ -781,7 +326,7 @@ selectTrack(void)
 	uint8_t trackID;
 	uint8_t i = 1;
 	
-	UWR("Which track to play?");
+	UWR("Whch?");
 	temp = readTotalTrack();
 	trackID = 0;
 	if (temp != 0)
@@ -899,12 +444,12 @@ trackList(void)
 		UWR("Track list:");
 		temp = tTrack;
 		IntToStr(temp, text); // convert total track to string
-		UART_Write_Text("Total track: ");
+		UART_Write_Text("Tk: ");
 		UWR(text);
 		/* print track list */
 		for (t = 1; t <= temp; t++)
 		{
-			UART_Write_Text("Track ");
+			UART_Write_Text("Tr ");
 			IntToStr(t, text);
 			UART_Write_Text(text);
 			UART_Write_Text(": ");
@@ -917,12 +462,11 @@ trackList(void)
 			LongWordToStr((readTrackMeta(t, _LENGTH)), text); // trackLnght to strng
 			UWR(text); // write track length and break line
 		}
-		UWR("*** END ***");
 	}
 	else 
 	{
 		// tTrack = 0;
-		UWR("No track available!");
+		UWR("e!");						/* No track avaiable */
 	}
 }
 
@@ -965,51 +509,6 @@ readTrackMeta(uint8_t trackID, uint8_t returnType)
 	return returnInfo;
 }
 
-/******************************************************************************
-uint8_t betterMmcInit(void)
-New MMC/SD init function support more cards.
-returns:
-	0: success
-	1: error, card not detected
-******************************************************************************/
-uint8_t
-betterMmcInit(void)
-{
-	static volatile uint8_t u;
-	
-	Delay_ms(2); // Delay 2 ms after power up the card
-	Mmc_Chip_Select = 1; // CS = 1
-	for (u = 0; u < 10; u++) // send 80 dummy clocks	
-	{
-		spiWrite(0xff);
-	}
-	Mmc_Chip_Select = 0; // CS = 0
-	
-}
-
-/******************************************************************************
-uint8_t getResponse(uint8_t type);
-Get R1, R3/R7 response from card.
-return: 
-	- respond : success
-	- 0xff : error
-******************************************************************************/
-uint8_t getResponse(uint8_t type)
-{
-	static volatile uint8_t r1Respond;
-	static volatile uint32_t r3Respond;
-	static volatile uint8_t count = 0;
-	
-	if (type == R1) // get R1 respond
-	{
-		do 
-		{
-			spiReadData = spiRead();
-			count++;
-		}
-		while (1); //TODO:: fix
-	}
-}
 
 /******************************************************************************
 uint8_t changeSamplingRate();
@@ -1041,17 +540,17 @@ changeSamplingRate()
 		
 		if ((select == 1) & (lastSelect != select))
 		{
-			UWR("-- Maximum rate");
+			UWR("-- Max");
 			delay = _MAXIMUM_RATE;
 		}
 		else if ((select == 2) & (lastSelect != select))
 		{
-			UWR("-- 22 Ksps");
+			UWR("-- 22");
 			delay = _22_KSPS;
 		}
 		else if ((select == 3) & (lastSelect != select))
 		{
-			UWR("-- 16 Ksps");
+			UWR("-- 16");
 			delay = _16_KSPS;
 		}
 		
@@ -1059,39 +558,6 @@ changeSamplingRate()
 	}
 	return delay;
 }
-
-void cardInit(uint8_t echo)
-{
-	uint8_t initRetry = 0;
-	
-	/* SPI Re-init */
-	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
-	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
-	
-	/* MMC/SD Re-Initialization */
-	while (1)
-	{
-		if (mmcInit() == 0)
-		{	
-			if (echo == ECHO_ON)
-			{
-				UWR("Card detected!");
-			}
-			break;
-		}
-		initRetry++;
-		if (initRetry == 50)
-		{
-			UWR("Card error, CPU trapped!");
-			while (1); // Trap the CPU
-		}
-	}
-	
-	/* Change SPI clock to maximum */
-	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
-	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
-}
-
 
 /**
 * This function setup the CCP2 module as an A/D conversion trigger.

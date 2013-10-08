@@ -90,6 +90,8 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 #define DACOUT LATB
 #define TP0 LATD7_bit
 
+#define _MULTIPLE_BLOCK 1
+
 
 /**
 * VARIABLE DECLARATION
@@ -97,6 +99,7 @@ sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 volatile uint16_t buffer0[512];			/* Buffers for ADC result storage */
 volatile uint16_t buffer1[512];
 uint16_t *ptr;
+uint16_t ptrIndex = 0;
 volatile uint8_t currentBuffer = 0;
 volatile uint8_t bufferFull = 0;
 
@@ -118,6 +121,10 @@ volatile uint8_t text[10];
 * FUNCTION DECLARATION
 */
 void specialEventTriggerSetup(void);
+void adcInit(void);
+uint8_t writeInit(uint8_t writeMode, uint32_t address);
+uint8_t write(uint8_t writeMode, uint16_t *buffer);
+void writeStop(void);
 
 
 /* EEPROM variables for track listing */
@@ -161,56 +168,6 @@ command(char command, uint32_t fourbyte_arg, char CRCbits)
 	spiReadData = spiRead();
 }
 
-uint8_t 
-mmcInit(void)
-{
-	uint8_t u;
-	volatile uint8_t error = 0;
-	
-	Delay_ms(2);
-	Mmc_Chip_Select = 1;
-	for (u = 0; u < 10; u++)
-	{
-		spiWrite(0xff);
-	}
-	Mmc_Chip_Select = 0;
-	Delay_ms(1);
-	command(0, 0, 0x95);
-	count = 0;
-	while ((spiReadData != 1) && (count < 10))
-	{
-		spiReadData = spiRead();
-		count++;
-	}
-	if (count >= 10)
-	{
-		error = initERROR_CMD0;
-	}
-	command(1, 0, 0xff);
-	count = 0;
-	while ((spiReadData != 0) && (count < 1000))
-	{
-		command(1, 0, 0xff);
-		spiReadData = spiRead();
-		count++;
-	}
-	if (count >= 1000)
-	{
-		error = initERROR_CMD1;
-	}
-	command(16, 512, 0xff);
-	count = 0;
-	while ((spiReadData != 0) && (count < 1000))
-	{
-		spiReadData = spiRead();
-		count++;
-	}
-	if (count >= 1000)
-	{
-		error = initERROR_CMD16;
-	}
-	return error;
-}
 
 void
 writeSingleBlock(void)
@@ -265,6 +222,7 @@ writeSingleBlock(void)
 	}
 	UWR("Card is idle");
 }
+
 void
 readSingleBlock(void)
 {
@@ -672,65 +630,36 @@ void main()
 		/**** BEGIN WORKING MODE *******/
 		if (mode == 1) // Record
 		{
-			#ifndef DEBUG // real code 
-			t = 0;
-			UWR("Writing");
-			PORTB = 0x00;
-			#ifdef REINIT_MMC
-			cardInit(ECHO_ON);
-			#endif
-			
-			/* Read total track to determine the address to write this track */
-			trackAddr = 0;
-			totalTrack = readTotalTrack();
-			
-			#ifndef DEBUG
-			IntToStr(totalTrack, text);
-			UART_Write_Text("Total track: ");
-			UWR(text);
-			#endif
-			
-			if (totalTrack == 0) // Card is empty
+			while (SLCT)				/* Wait until SLCT pressed */
 			{
-				trackAddr = 0; //  write on the beginning.
-			}
-			else // card is not empty, totalTrack != 0
-			{
-				/* Determine first free sector */
-				for (i = 1; i <= totalTrack; i++)
+				if (writeInit(_MULTIPLE_BLOCK, 0))
 				{
-					trackAddr = trackAddr + readTrackMeta(i, _LENGTH); 
+					UWR("Write error!");
+					break;
+				}
+				
+				if (bufferFull)
+				{
+					bufferFull = 0;
+					if (currentBuffer)	/* Write buffer 0 */
+					{
+						if (write(_MULTIPLE_BLOCK, buffer0))
+						{
+							UWR("W e1!");
+						}
+					}
+					else				/* Write buffer 1 */
+					{
+						if (write(_MULTIPLE_BLOCK, buffer1))
+						{
+							UWR("W e2!");
+						}
+					}
 				}
 			}
 			
-			#ifndef DEBUG
-			UART_Write_Text("New track Address: ");
-			LongWordToStr(trackAddr, text);
-			UWR(text);
-			#endif
-			
-			/* Write a new track */			
-			if (writeMultipleBlock(trackAddr * 512))
-			{
-				UWR("Write error!");
-			}
-			else
-			{
-				UWR("STOPPED!")
-				IntToStr(numberOfSectors, text);
-				UWR("Written:")
-				UWR(text);
-				IntToStr(rejected, text);
-				UWR("Lost: ");
-				UWR(text); // Print out number of recjected sector
-				LongWordToStr(trackAddr, text);
-				UWR(text);
-				addTrack(trackAddr, numberOfSectors);
-				UWR("Track added!");
-			}
-			
-			#else // debug code
-			#endif
+			writeStop();
+			UWR("Write completed!");
 		}
 
 		/* Play mode */
@@ -1170,13 +1099,13 @@ void cardInit(uint8_t echo)
 void specialEventTriggerSetup(void)
 {
 	/* Compare mode, trigger sepcial event */
-	CCP2CON = (1 << CCP2M3) | (1 << CCP2M1) | (1 << CC2P2M0);
+	CCP2CON = (1 << CCP2M3) | (1 << CCP2M1) | (1 << CCP2M0);
 	
 	/* Timer 3 as clock source
 		with 1:8 clock prescaler */
 	T3CON = (1 << T3CCP2) | (1 << T3CKPS1) | (1 << T3CKPS0);
 	
-	/* Compare value: 15625 (0x3d09) for 25ms period *//
+	/* Compare value: 15625 (0x3d09) for 25ms period */
 	CCPR2H = 0x3d;
 	CCPR2L = 0x09;
 }
@@ -1215,10 +1144,10 @@ void interrupt(void)
 	if (PIR1 & (1 << ADIF)) 
 	{
 		/* Move the result to buffer */
-		*(ptr++) = (ADRESH << 8) + ADRESL;
+		*(ptr + (ptrIndex++)) = (ADRESH << 8) + ADRESL;
 		
 		/* Swap the buffer */
-		if (ptr == 512)					
+		if (ptrIndex == 512)					
 		{
 			bufferFull = 1;
 			if (currentBuffer == 0)
@@ -1233,14 +1162,6 @@ void interrupt(void)
 			}
 		}
 	}
-}
-
-/**
-*	Recording function
-*/
-void record(void)
-{
-	
 }
 
 /**
@@ -1286,8 +1207,57 @@ uint8_t writeInit(uint8_t writeMode, uint32_t address)
 	}
 }
 
-uint8_t write(uint8_t writeMode)
+/**
+* Write the data to the card.
+*/
+uint8_t write(uint8_t writeMode, uint16_t *buffer)
 {
-	spiWrite(0b11111100);					/* Data token for CMD 25 */
+	uint16_t i;
+	uint8_t count;
+	uint8_t error = 0;
 	
+	if (writeMode == _MULTIPLE_BLOCK)		
+	{
+		spiWrite(0b11111100);				/* Data token for CMD 25 */
+		
+		for (i = 0; i < 512; i++)
+		{
+			spiWrite(*(buffer + i));
+		}
+		
+		spiWrite(0xff);						/* 2-bytes CRC */
+		spiWrite(0xff);
+		
+		/* Check if the data is accepted */
+		count = 0;
+		while (count++ < 12)
+		{
+			spiReadData = spiRead();
+			if ((spiReadData & 0x1f) == 0x05)
+			{
+				error = 0;
+				break;
+			}
+			else
+			{	
+				error = 1;
+			}
+		}
+		
+		while (spiRead() != 0xff);			/* Check if the card is busy */
+	}
+	else
+	{
+	}
+	
+	return error;
+}
+
+/**
+*	This function stop the write procedure for multiple block write
+*/
+void writeStop(void) 
+{
+	spiWrite(0b11111101);
+	while (spiRead() != 0xff); 				// Check if the card is busy
 }

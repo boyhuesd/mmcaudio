@@ -56,8 +56,8 @@ git push origin branch
 */
 volatile uint8_t buffer0[512];			/* Buffers for ADC result storage */
 volatile uint8_t buffer1[512];
-uint8_t *ptr;
-uint16_t ptrIndex = 0;
+static volatile uint8_t *ptr;
+static volatile uint16_t ptrIndex = 0;
 volatile uint8_t currentBuffer = 0;
 volatile uint8_t bufferFull = 0;
 
@@ -72,7 +72,6 @@ sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 
 /* Debug variables */
-volatile uint16_t count = 0;
 volatile uint32_t adcCount = 0;
 
 
@@ -271,10 +270,6 @@ void main()
 				intToStr(buffer0[i], text);
 				UWR(text);
 			}
-			
-			/* Count the number of ADRESH = 0 */
-			intToStr(count, text);
-			UWR(text);
 		}
 		
 		mode == 1;
@@ -366,11 +361,6 @@ void interrupt()
 				ptr = buffer0;
 				currentBuffer = 0;
 			}
-		}
-		
-		if (adcResult == 0)
-		{
-			count++;
 		}
 	}
 }

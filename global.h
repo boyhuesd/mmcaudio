@@ -80,9 +80,9 @@ extern volatile uint8_t text[10];
 
 extern volatile uint8_t buffer0[512];
 extern volatile uint8_t buffer1[512];
-extern uint16_t *ptr;
-extern uint16_t ptrIndex;
 extern volatile uint8_t currentBuffer;
 extern volatile uint8_t bufferFull;
+
+/* For track management */
 
 #endif

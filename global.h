@@ -2,6 +2,7 @@
 #define _GLOBAL_H
 
 #include "string.h"
+#include <stdint.h>
 
 /*
 * Function aliases
@@ -76,5 +77,12 @@ extern volatile uint8_t count;
 extern volatile uint16_t rejected;
 extern volatile uint8_t samplingDelay;
 extern volatile uint8_t text[10];
+
+extern volatile uint8_t buffer0[512];
+extern volatile uint8_t buffer1[512];
+extern uint16_t *ptr;
+extern uint16_t ptrIndex;
+extern volatile uint8_t currentBuffer;
+extern volatile uint8_t bufferFull;
 
 #endif

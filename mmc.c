@@ -12,13 +12,14 @@ uint8_t mmcInit(void)
 	uint8_t u;
 	volatile uint8_t error = 0;
 	
-	Delay_ms(2);
 	CS = 1;
+	Delay_ms(2);
 	for (u = 0; u < 10; u++)
 	{
 		spiWrite(0xff);
 	}
 	CS = 0;
+	
 	Delay_ms(1);
 	command(0, 0, 0x95);
 	count = 0;
@@ -369,4 +370,102 @@ uint8_t readMultipleBlock(uint8_t samplingRate, uint32_t address, uint32_t lengt
 		UWR("Card free!");
 	}
 	return error;
+}
+
+/**
+*	Write init
+* 	This function init the writing procedure to the card with write mode is 
+*	single or multiple blocks.
+*/
+uint8_t writeInit(uint8_t writeMode, uint32_t address)
+{
+	uint8_t retry;
+	
+	if (writeMode == _MULTIPLE_BLOCK)
+	{
+		while (retry < 50)
+		{
+			if (!(sendCMD(25, address)))
+			{
+				error = 0;
+				break;
+			}
+			else
+			{
+				error = 1;
+				retry++;
+			}
+		}
+	}
+	else 
+	{
+		// TODO wire single block init code goes here
+	}
+	
+	if (!error)
+	{
+		spiWrite(0xff);						/* Dummy clock */
+		spiWrite(0xff);
+		spiWrite(0xff);
+		return 0;
+	}
+	else
+	{
+		return 1;
+	}
+}
+
+/**
+* Write the data to the card.
+*/
+uint8_t write(uint8_t writeMode, uint16_t *buffer)
+{
+	uint16_t i;
+	uint8_t count;
+	uint8_t error = 0;
+	
+	if (writeMode == _MULTIPLE_BLOCK)		
+	{
+		spiWrite(0b11111100);				/* Data token for CMD 25 */
+		
+		for (i = 0; i < 512; i++)
+		{
+			spiWrite(*(buffer + i));
+		}
+		
+		spiWrite(0xff);						/* 2-bytes CRC */
+		spiWrite(0xff);
+		
+		/* Check if the data is accepted */
+		count = 0;
+		while (count++ < 12)
+		{
+			spiReadData = spiRead();
+			if ((spiReadData & 0x1f) == 0x05)
+			{
+				error = 0;
+				break;
+			}
+			else
+			{	
+				error = 1;
+			}
+		}
+		
+		while (spiRead() != 0xff);			/* Check if the card is busy */
+	}
+	else
+	{
+	}
+	
+	return error;
+}
+
+/**
+*	This function stop the write procedure for multiple block write
+*/
+void writeStop(void) 
+{
+	spiWrite(0b11111101);
+	while (spiRead() != 0xff); 				// Check if the card is busy
 }

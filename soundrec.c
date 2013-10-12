@@ -41,16 +41,21 @@ git push origin branch
 * 11. Write handle when play the whole card in readMultipleBlock()
 * 12. Display sampling period on oscilloscope.
 */
+
 #include <stdint.h>
-#include "mmc.h"
+//#include "mmc.h"
+#include "string.h"
 #include "soundrec.h"
 #include "global.h"
+#include "adc.h"
+
+#define _UART_GUI_
 
 /**
 * VARIABLE DECLARATION
 */
-volatile uint16_t buffer0[512];			/* Buffers for ADC result storage */
-volatile uint16_t buffer1[512];
+volatile uint8_t buffer0[512];			/* Buffers for ADC result storage */
+volatile uint8_t buffer1[512];
 uint16_t *ptr;
 uint16_t ptrIndex = 0;
 volatile uint8_t currentBuffer = 0;
@@ -58,26 +63,22 @@ volatile uint8_t bufferFull = 0;
 
 //volatile unsigned char samplingRate = 1;
 volatile unsigned int mode = 0;
-volatile unsigned int t = 0;
-volatile unsigned char x;
-volatile uint8_t error;
-volatile uint32_t numberOfSectors;
-volatile uint8_t spiReadData;
-volatile uint32_t arg = 0;
-volatile uint8_t count;
-volatile uint16_t rejected = 0;
-volatile uint8_t samplingDelay = _MAXIMUM_RATE;
 volatile uint8_t text[10];
+
+volatile uint32_t sectorIndex = 0;
+
+sfr sbit Mmc_Chip_Select at LATC2_bit;
+sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
+
+/* Debug variables */
+volatile uint32_t adcCount = 0;
 
 
 /**
 * FUNCTION DECLARATION
 */
-void specialEventTriggerSetup(void);
-void adcInit(void);
-uint8_t writeInit(uint8_t writeMode, uint32_t address);
-uint8_t write(uint8_t writeMode, uint16_t *buffer);
-void writeStop(void);
+void mmcBuiltinInit(void);
+void timer1Config(void);
 
 
 /* EEPROM variables for track listing */
@@ -91,34 +92,13 @@ char* codeToRam(const char* ctxt)
 	return txt;
 }
 
-/*********** BEGIN ADC *****************/
-uint8_t
-adcRead(void)
-{
-	//TP0 = 1;
-	GO_bit = 1; // Begin conversion
-	while (GO_bit); // Wait for conversion completed
-	//TP0 = 0;
-	return ADRESH;
-}
-/*********** END ADC *****************/
-
 void main()
 {
 	unsigned char lastMode;
-	static volatile uint8_t totalTrack;
-	static volatile uint32_t trackAddr; // MMC/SD Addr to write this track
-	static volatile uint32_t trackLength = 0;
-	static volatile uint8_t i;
-	static volatile uint8_t trackID = 0;
-	volatile uint8_t lastSelect = 0;
-	uint8_t trackSamplingRate = ENC_MAXIMUM_RATE; /* Encoded track sampling rate
-													in EEPROM */
 
-	ADCON1 |= 0x0e; // AIN0 as analog input
-	ADCON2 |= 0x2d; // 12 Tad and FOSC/16
-	ADFM_bit = 0; // Left justified
-	ADON_bit = 1; // Enable ADC module
+	ptr = &buffer0[0];
+	currentBuffer = 0;
+	adcInit();
 	Delay_ms(100);
 
 	/**** END ADC INIT ****/
@@ -131,18 +111,24 @@ void main()
 	TRISC = 0x00;
 
 	UART1_Init(9600);
-	cardInit(ECHO_ON);
+	UWR(codeToRam(uart_welcome));
+	mmcBuiltinInit();
+	specialEventTriggerSetup();
+	timer1Config();
+	LATD7_bit = 0;
+	INTCON |= (1 << GIE) | (1 << PEIE);
 
-	for (;;)        /* Repeat forever */
+	for (;;)        					/* Repeat forever */
 	{
-		/****** REWRITE NEW SETUP UI ******/
-		while (SLCT != 0)        /* Wait until SELECT pressed */
+		while (SLCT != 0)
 		{
 		}
-		UWR("Select a Menu");
-		while (OK)
+#ifdef _UART_GUI_
+		UWR(codeToRam(uart_menu));
+		
+		while (OK)	/* OK not pressed */
 		{
-			if (!SLCT)
+			if (!SLCT)	/* SLCT */
 			{
 				Delay_ms(300);
 				mode++;
@@ -154,576 +140,148 @@ void main()
 
 			if ((mode == 1) & (lastMode != mode))
 			{
-				UWR("Record");
+				UWR(codeToRam(uart_record));
 			}
 			else if ((mode == 2) & (lastMode != mode))
 			{
-				UWR("Play");
+				UWR(codeToRam(uart_play));
 			}
 			else if ((mode == 3) & (lastMode != mode))
 			{
-				UWR("Track listing");
+				UWR(codeToRam(uart_trackList));
 			}
 			else if ((mode == 4) & (lastMode != mode))
 			{
-				UWR("C s r"); 			/* Change sampling rate */
+				UWR(codeToRam(uart_changeSampleRate));
 			}
+			
 			lastMode = mode;					
 		}
-		/****** END REWRITE NEW SETUP UI ******/
-
-		/**** BEGIN WORKING MODE *******/
-		if (mode == 1) // Record
+		
+		/* Record mode */
+		if (mode == 1)
 		{
-			while (SLCT)				/* Wait until SLCT pressed */
-			{
-				if (writeInit(_MULTIPLE_BLOCK, 0))
+			/* Write routine */
+			UWR(codeToRam(uart_writing));
+			ptr = buffer0;
+			ptrIndex = 0;
+			sectorIndex = 0;
+			//specialEventTriggerStart();
+			T1CON = (1 << TMR1ON);
+			while (SLCT)		/* Wait until SLCT pressed */
+			{			
+				if (bufferFull == 1)
 				{
-					UWR("W!");
-					break;
-				}
-				
-				if (bufferFull)
-				{
-					bufferFull = 0;
+				bufferFull = 0;
 					if (currentBuffer)	/* Write buffer 0 */
 					{
-						if (write(_MULTIPLE_BLOCK, buffer0))
+						if (Mmc_Write_Sector(sectorIndex++, buffer0) != 0)
 						{
-							UWR("W e1!");
+							UWR(codeToRam(uart_errorWrite));
 						}
 					}
 					else				/* Write buffer 1 */
 					{
-						if (write(_MULTIPLE_BLOCK, buffer1))
+						if (Mmc_Write_Sector(sectorIndex++, buffer1) != 0)
 						{
-							UWR("W e2!");
+							UWR(codeToRam(uart_errorWrite));
 						}
 					}
 				}
 			}
+			T1CON &= ~(1 << TMR1ON);
+			Delay_ms(500);
 			
-			writeStop();
-			UWR("Wr!");
+			/* Write complete message */
+			intToStr(sectorIndex, text);
+			UWR(codeToRam(uart_done));
+			UWR(text);
+			intToStr(adcCount, text);
+			UWR(text);
 		}
 
 		/* Play mode */
 		else if (mode == 2) 
 		{
-			#ifndef DEBUG // realcode
-			#ifdef DEBUG_SELECT_TRACK
-			while (OK == 0);
-			UWR("Wch?");
-			totalTrack = readTotalTrack();
-			trackID = 0;
-			i = 0;
-			if (totalTrack != 0)
-			{	
-				while (OK) 			// OK button not pressed
-				{
-					if (!SLCT)
-					{
-						Delay_ms(300);
-						i++;
-						if (i == (totalTrack + 1))
-						{
-							i = 1;
-						}
-					}
-					
-					if (lastSelect != i)
-					{
-						IntToStr(i, text);
-						UWR(text);
-					}
-					
-					lastSelect = i;
-				}
-			}
-			trackID = i;
-			#else
-			trackID = selectTrack();
-			#endif
-			UART_Write_Text("Slctd: ");
-			IntToStr(trackID, text);
-			UWR(text);
 			
-			if (trackID != 0)
-			{
-				/* Get track address and track length */
-				trackAddr = readTrackMeta(trackID, _ADDRESS);
-				trackLength = readTrackMeta(trackID, _LENGTH);
-				
-				/* Get track sampling rate */
-				trackSamplingRate = (uint8_t) (readTrackMeta(trackID,\
-				_TRACK_SAMPLING_RATE));
-				
-				if (trackLength != 0)
-				{
-					/* Play the track */
-					if (readMultipleBlock(trackSamplingRate, trackAddr*512, 	
-					trackLength))
-					{
-						UWR("R r!"); 
-					}
-				}
-				else
-				{
-					UWR("pt!");			/* Empty */
-				}
-			}
-			else 
-			{
-				//TODO:: play the whole card goes here
-			}
-			
-			#else
-			//read 10 block from address 0
-			if (readMultipleBlock(6*512, 3))
-			{
-				UWR("R r!"); 
-			}
-			#endif
-			while (SLCT && OK) // return to main menu
-			{
-			}
-		}
-		else if (mode == 3) // track listing
-		{
-			tracklist();
-			for (i = 0; i < 40; i++)
-			{
-				IntToStr(EEPROM_Read(i), text);
-				UART_Write_Text(text);
-			}
-			UWR("");
-			while (SLCT && OK) // return to main menu
-			{
-			}
-		}
-		else if (mode == 4) // Change sampling rate
-		{
-			samplingDelay = changeSamplingRate();
-			UWR("S!");
-			while (SLCT && OK)
-			{
-			}
-		}
-		/**** END WORKING MODE *******/
-	}
-}
-
-/******************************************************************************
-uint8_t selectTrack
-returns:
-	- trackID
-	- 0: play the whole card
-******************************************************************************/
-uint8_t
-selectTrack(void)
-{
-	uint8_t temp = 0;
-	uint8_t trackID;
-	uint8_t i = 1;
-	
-	UWR("Whch?");
-	temp = readTotalTrack();
-	trackID = 0;
-	if (temp != 0)
-	{
-		while (OK)
-		{
-			if (!SLCT)
-			{
-				Delay_ms(300);
-				i++;
-				if (i == (temp + 1))
-				{
-					i = 1;
-				}
-			}
-			
-			trackID = i;
-			IntToStr(i, text);
-			UWR(text);
-			Delay_ms(200);
 		}
 		
-		return trackID;
-	}
-	else
-	{
-		return 0; // play the whole card
+#endif
 	}
 }
 
-/*
-* void addTrack(uint32_t address, uint32_t length)
-* Caution! Sampling rate will be place at 8MSBs in address.
-* This function add the track to tracklist on EEPROM.
-* Arguments: address: 32 bit address of the track
-* 			 length: 32 bit length of the track
-* Returns: none
-*/
-void
-addTrack(uint32_t address, uint32_t length)
+void mmcBuiltinInit(void)
 {
-	static volatile uint8_t romAddr;
-	static volatile uint8_t totalTrack;
+	/* Init the SPI module with fOSC/64 */
+	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
+	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 	
-	/* Encode the sampling rate to address's first octet */
-	address &= 0x1fffffff; /* Clear the first 3 MSBs */
-	switch (samplingDelay)
+	/* Init the MMC/SD */
+	while (MMC_Init() != 0)
 	{
-		case _MAXIMUM_RATE:
-		{
-			address |= (ENC_MAXIMUM_RATE << 29);
-			break;
-		}
-		case _22_KSPS:
-		{
-			address |= (ENC_22_KSPS << 29);
-			break;
-		}
-		case _16_KSPS:
-		{
-			address |= (ENC_16_KSPS << 29);
-			break;
-		}
 	}
-	totalTrack = EEPROM_Read(0x00) & 0b000111111; // Read the totalTrack value
-	romAddr = 8*totalTrack; // Address to place new track metadata
-	/* Write new track address */
-	EEPROM_Write((romAddr + 1), (uint8_t) (address >> 24)); // MSB first
-	EEPROM_Write((romAddr + 2), (uint8_t) (address >> 16));
-	EEPROM_Write((romAddr + 3), (uint8_t) (address >> 8));
-	EEPROM_Write((romAddr + 4), (uint8_t) address);
-	/* Write new track length */
-	EEPROM_Write((romAddr + 5), (uint8_t) (length >> 24)); // MSB first
-	EEPROM_Write((romAddr + 6), (uint8_t) (length >> 16));
-	EEPROM_Write((romAddr + 7), (uint8_t) (length >> 8));
-	EEPROM_Write((romAddr + 8), (uint8_t) length);
-	/* Write new totalTrack */
-	totalTrack++;
-	totalTrack |= 0b10100000;
-	EEPROM_Write(0x00, totalTrack);
+	
+	/* Boost the SPI clock speed to fOSC/4 */
+	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
+	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 }
 
-uint8_t
-readTotalTrack(void)
+void interrupt()
 {
-	static volatile uint8_t totalTrack;
-	
-	totalTrack = EEPROM_Read(0x00);
-	// check if totalTrack is a valid number
-	if (((totalTrack & 0b11100000) >> 5) != 0x05)
+	if (PIR1.TMR1IF == 1)
 	{
-		// invalid, totalTrack = 0;
-		EEPROM_Write(0x00, 0b10100000);
-		return 0;
-	}
-	else
-	{
-		// valid, return totalTrack
-		totalTrack &= 0b00011111;
-		return totalTrack;
-	}
-}
-
-void
-trackList(void)
-{
-	uint8_t tTrack;
-	uint8_t t;
-	uint8_t temp;
-	
-	tTrack = readTotalTrack(); // beware of nesting fucntion call!
-	
-	if (tTrack != 0)
-	{
-		UWR("Track list:");
-		temp = tTrack;
-		IntToStr(temp, text); // convert total track to string
-		UART_Write_Text("Tk: ");
-		UWR(text);
-		/* print track list */
-		for (t = 1; t <= temp; t++)
-		{
-			UART_Write_Text("Tr ");
-			IntToStr(t, text);
-			UART_Write_Text(text);
-			UART_Write_Text(": ");
-			/* Write track address */
-			// !!! Beware of nesting function call
-			LongWordToStr((readTrackMeta(t, _ADDRESS)), text); // trackAddr to string
-			UART_Write_Text(text); // write track address
-			UART_Write_Text("  "); // write inline spaces
-			/* Write track length */
-			LongWordToStr((readTrackMeta(t, _LENGTH)), text); // trackLnght to strng
-			UWR(text); // write track length and break line
-		}
-	}
-	else 
-	{
-		// tTrack = 0;
-		UWR("e!");						/* No track avaiable */
-	}
-}
-
-uint32_t
-readTrackMeta(uint8_t trackID, uint8_t returnType)
-{
-	uint32_t returnInfo = 0;
-	uint8_t romAddr; // first rom location for track
-	
-	romAddr = 8 * (trackID - 1);
-	switch (returnType)
-	{
-		case _ADDRESS:
-		{
-			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 1) << 24); // MSB
-			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 2) << 16);
-			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 3) << 8);
-			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 4)); // LSB
-			returnInfo &= 0x1fffffff; /* Clear 3 MSBs */
-			break;
-		}
-		case _LENGTH:
-		{
-			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 5) << 24); // MSB
-			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 6) << 16);
-			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 7) << 8);
-			returnInfo |= (uint32_t) (EEPROM_Read(romAddr + 8)); // LSB
-			break;
-		}
-		case _TRACK_SAMPLING_RATE:
-		{
-			returnInfo = (uint32_t) (EEPROM_Read(romAddr + 1) >> 5);
-			break;
-		}
-		default:
-		{
-			break;
-		}
-	}
-	return returnInfo;
-}
-
-
-/******************************************************************************
-uint8_t changeSamplingRate();
-UI to prompt user select sampling rate
-returns: delay amount
-******************************************************************************/
-uint8_t
-changeSamplingRate()
-{
-	static uint8_t select, lastSelect;
-	static uint8_t delay = _MAXIMUM_RATE;
-	
-	select = 1;
-	lastSelect = 0;
-	
-	while (!OK || !SLCT); // make sure none are pressed
-	UWR("Select sampling rate:");
-	while (OK)
-	{
-		if (!SLCT)
-		{
-			Delay_ms(300);
-			select++;
-			if (select == 4)
-			{
-				select = 1;
-			}
-		}
+		/* Clear the interrupt flag */
+		PIR1.TMR1IF = 0;
 		
-		if ((select == 1) & (lastSelect != select))
-		{
-			UWR("-- Max");
-			delay = _MAXIMUM_RATE;
-		}
-		else if ((select == 2) & (lastSelect != select))
-		{
-			UWR("-- 22");
-			delay = _22_KSPS;
-		}
-		else if ((select == 3) & (lastSelect != select))
-		{
-			UWR("-- 16");
-			delay = _16_KSPS;
-		}
+		/* Load a new timer cycle */
+		/* For 8kHz: 0xfd8e
+			For 16kHz: 0xfec7*/
+		TMR1H = 0xfe;
+		TMR1L = 0xc7;
 		
-		lastSelect = select;
+		if (mode == 1)					/* Record mode */
+		{
+			/* Trigger the A/D conversion */
+			GO_bit = 1;
+		}
+		else							/* Play mode */
+		{
+			/* Send data to the DAC */
+			DACOUT = *(ptr + (ptrIndex++));
+		}
 	}
-	return delay;
-}
 
-/**
-* This function setup the CCP2 module as an A/D conversion trigger.
-*/
-void specialEventTriggerSetup(void)
-{
-	/* Compare mode, trigger sepcial event */
-	CCP2CON = (1 << CCP2M3) | (1 << CCP2M1) | (1 << CCP2M0);
-	
-	/* Timer 3 as clock source
-		with 1:8 clock prescaler */
-	T3CON = (1 << T3CCP2) | (1 << T3CKPS1) | (1 << T3CKPS0);
-	
-	/* Compare value: 15625 (0x3d09) for 25ms period */
-	CCPR2H = 0x3d;
-	CCPR2L = 0x09;
-}
-
-/**
-* This function start the Timer 3 for special event trigger.
-*/
-void specialEventTriggerStart(void)
-{
-	T3CON |= (1 << TMR3ON);
-}
-
-/**
-* Init the ADC module
-* 	with AIN0 as analog input
-* 	12 Tad and FOSC/16
-* 	left justified result
-*/
-void adcInit(void)
-{
-	ADCON1 = 0x0e;						
-	ADCON2 = 0x2d;						
-	ADCON2 |= (1 << ADFM);			
-	ADCON0 |= (1 << ADON);	
-
-	/* Enable ADC interrupt */
-	PIE1 |= (1 << ADIE);
-}
-
-/**
-* A/D conversion interrupt routine
-* This move the ADC result to the buffer array.
-*/
-void interrupt(void)
-{
 	if (PIR1 & (1 << ADIF)) 
 	{
+		/* Clear the interrupt flag */
+		PIR1 &= ~(1 << ADIF);
+		
 		/* Move the result to buffer */
-		*(ptr + (ptrIndex++)) = (ADRESH << 8) + ADRESL;
+		*(ptr + (ptrIndex++)) = ADRESH;
 		
 		/* Swap the buffer */
 		if (ptrIndex == 512)					
 		{
+			ptrIndex = 0;
 			bufferFull = 1;
 			if (currentBuffer == 0)
 			{
-				ptr = buffer1;
+				ptr = &buffer1[0];
 				currentBuffer = 1;
 			}
 			else
 			{
-				ptr = buffer0;
+				ptr = &buffer0[0];
 				currentBuffer = 0;
 			}
 		}
 	}
 }
 
-/**
-*	Write init
-* 	This function init the writing procedure to the card with write mode is 
-*	single or multiple blocks.
-*/
-uint8_t writeInit(uint8_t writeMode, uint32_t address)
+void timer1Config(void)
 {
-	uint8_t retry;
+	PIE1 = (1 << TMR1IE);
 	
-	if (writeMode == _MULTIPLE_BLOCK)
-	{
-		while (retry < 50)
-		{
-			if (!(sendCMD(25, address)))
-			{
-				error = 0;
-				break;
-			}
-			else
-			{
-				error = 1;
-				retry++;
-			}
-		}
-	}
-	else 
-	{
-		// TODO wire single block init code goes here
-	}
-	
-	if (!error)
-	{
-		spiWrite(0xff);						/* Dummy clock */
-		spiWrite(0xff);
-		spiWrite(0xff);
-		return 0;
-	}
-	else
-	{
-		return 1;
-	}
-}
-
-/**
-* Write the data to the card.
-*/
-uint8_t write(uint8_t writeMode, uint16_t *buffer)
-{
-	uint16_t i;
-	uint8_t count;
-	uint8_t error = 0;
-	
-	if (writeMode == _MULTIPLE_BLOCK)		
-	{
-		spiWrite(0b11111100);				/* Data token for CMD 25 */
-		
-		for (i = 0; i < 512; i++)
-		{
-			spiWrite(*(buffer + i));
-		}
-		
-		spiWrite(0xff);						/* 2-bytes CRC */
-		spiWrite(0xff);
-		
-		/* Check if the data is accepted */
-		count = 0;
-		while (count++ < 12)
-		{
-			spiReadData = spiRead();
-			if ((spiReadData & 0x1f) == 0x05)
-			{
-				error = 0;
-				break;
-			}
-			else
-			{	
-				error = 1;
-			}
-		}
-		
-		while (spiRead() != 0xff);			/* Check if the card is busy */
-	}
-	else
-	{
-	}
-	
-	return error;
-}
-
-/**
-*	This function stop the write procedure for multiple block write
-*/
-void writeStop(void) 
-{
-	spiWrite(0b11111101);
-	while (spiRead() != 0xff); 				// Check if the card is busy
+	TMR1H = 0xfe;
+	TMR1L = 0xc7;
 }

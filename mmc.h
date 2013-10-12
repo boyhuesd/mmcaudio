@@ -11,5 +11,8 @@ void writeSingleBlock(void);
 void readSingleBlock(void);
 uint8_t sendCMD(uint8_t cmd, uint32_t arg);
 uint8_t readMultipleBlock(uint8_t samplingRate, uint32_t address, uint32_t length);
+uint8_t writeInit(uint8_t writeMode, uint32_t address);
+uint8_t write(uint8_t writeMode, uint16_t *buffer);
+void writeStop(void);
 
 #endif	/* _MMC_H */

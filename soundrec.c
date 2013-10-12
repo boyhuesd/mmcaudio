@@ -56,7 +56,7 @@ git push origin branch
 */
 volatile uint8_t buffer0[512];			/* Buffers for ADC result storage */
 volatile uint8_t buffer1[512];
-uint16_t *ptr;
+uint8_t *ptr;
 uint16_t ptrIndex = 0;
 volatile uint8_t currentBuffer = 0;
 volatile uint8_t bufferFull = 0;
@@ -66,11 +66,13 @@ volatile unsigned int mode = 0;
 volatile uint8_t text[10];
 
 volatile uint32_t sectorIndex = 0;
+volatile uint8_t adcResult = 0;
 
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 
 /* Debug variables */
+volatile uint16_t count = 0;
 volatile uint32_t adcCount = 0;
 
 
@@ -81,8 +83,6 @@ void mmcBuiltinInit(void);
 void timer1Config(void);
 
 
-/* EEPROM variables for track listing */
-//volatile uint8_t totalTrack = 0; // Total tracks have been recorded
 char* codeToRam(const char* ctxt)
 {
 	static char txt[20];
@@ -95,6 +95,7 @@ char* codeToRam(const char* ctxt)
 void main()
 {
 	unsigned char lastMode;
+	uint16_t i;
 
 	ptr = &buffer0[0];
 	currentBuffer = 0;
@@ -166,9 +167,10 @@ void main()
 			ptr = buffer0;
 			ptrIndex = 0;
 			sectorIndex = 0;
-			//specialEventTriggerStart();
+			bufferFull = 0;
+			
 			T1CON = (1 << TMR1ON);
-			while (SLCT)		/* Wait until SLCT pressed */
+			while (SLCT)				/* Wait until SLCT pressed */
 			{			
 				if (bufferFull == 1)
 				{
@@ -203,8 +205,79 @@ void main()
 		/* Play mode */
 		else if (mode == 2) 
 		{
+			/* Read routine */
+			UWR(codeToRam(uart_reading));
+			ptr = buffer0;
+			ptrIndex = 0;
+			sectorIndex = 0;
+			bufferFull = 0;
 			
+			/* Read the first sector to the buffer */
+			if (Mmc_Read_Sector(sectorIndex, buffer0) != 0)
+			{
+				UWR(codeToRam(uart_initReadError));
+			}
+			
+			/* Start the timer1 */
+			T1CON |= (1 << TMR1ON);
+			
+			/* Reading loop */
+			while (SLCT)				/* Wait until SLCT pressed */
+			{
+				if (bufferFull == 1)
+				{
+				bufferFull = 0;
+					if (currentBuffer)	/* Read buffer 0 */
+					{
+						if (Mmc_Read_Sector(sectorIndex++, buffer0) != 0)
+						{
+							UWR(codeToRam(uart_errorRead));
+						}
+					}
+					else				/* Write buffer 1 */
+					{
+						if (Mmc_Read_Sector(sectorIndex++, buffer1) != 0)
+						{
+							UWR(codeToRam(uart_errorRead));
+						}
+					}
+				}
+			}
+			
+			/* Stop the timer1 */
+			T1CON &= ~(1 << TMR1ON);
+			Delay_ms(500);
+			
+			UWR(codeToRam(uart_done));
 		}
+		
+		/* Test read mode */
+		else if (mode == 3)
+		{
+			/* Empty the buffer */
+			for (i = 0; i < 512; i++)
+			{
+				buffer0[i] = 0;
+				buffer1[i] = 0;
+			}
+			
+			/* Load the data to buffers */
+			Mmc_Read_Sector(5, buffer0);
+			Mmc_Read_Sector(10, buffer1);
+			
+			/* Print the buffer to the screen */
+			for (i = 0; i < 512; i++)
+			{
+				intToStr(buffer0[i], text);
+				UWR(text);
+			}
+			
+			/* Count the number of ADRESH = 0 */
+			intToStr(count, text);
+			UWR(text);
+		}
+		
+		mode == 1;
 		
 #endif
 	}
@@ -244,10 +317,27 @@ void interrupt()
 			/* Trigger the A/D conversion */
 			GO_bit = 1;
 		}
-		else							/* Play mode */
+		else if (mode == 2)				/* Play mode */
 		{
 			/* Send data to the DAC */
 			DACOUT = *(ptr + (ptrIndex++));
+			
+			/* Swap the buffer */
+			if (ptrIndex == 512)					
+			{
+				ptrIndex = 0;
+				bufferFull = 1;
+				if (currentBuffer == 0)
+				{
+					ptr = buffer1;
+					currentBuffer = 1;
+				}
+				else
+				{
+					ptr = buffer0;
+					currentBuffer = 0;
+				}
+			}
 		}
 	}
 
@@ -256,8 +346,10 @@ void interrupt()
 		/* Clear the interrupt flag */
 		PIR1 &= ~(1 << ADIF);
 		
+		/* Buffer the result */
+		adcResult = ADRESH;
 		/* Move the result to buffer */
-		*(ptr + (ptrIndex++)) = ADRESH;
+		*(ptr + (ptrIndex++)) = adcResult;
 		
 		/* Swap the buffer */
 		if (ptrIndex == 512)					
@@ -266,14 +358,19 @@ void interrupt()
 			bufferFull = 1;
 			if (currentBuffer == 0)
 			{
-				ptr = &buffer1[0];
+				ptr = buffer1;
 				currentBuffer = 1;
 			}
 			else
 			{
-				ptr = &buffer0[0];
+				ptr = buffer0;
 				currentBuffer = 0;
 			}
+		}
+		
+		if (adcResult == 0)
+		{
+			count++;
 		}
 	}
 }

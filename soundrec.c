@@ -50,6 +50,7 @@ git push origin branch
 #include "adc.h"
 
 #define _UART_GUI_
+#define DEBUG_PLAY
 
 /**
 * VARIABLE DECLARATION
@@ -80,6 +81,10 @@ volatile uint32_t adcCount = 0;
 */
 void mmcBuiltinInit(void);
 void timer1Config(void);
+void pwmCOnfig(void);
+void pwmStart(void);
+void pwmStop(void);
+void pwmChangeDutyCycle(uint8_t dutyCycle);
 
 
 char* codeToRam(const char* ctxt)
@@ -116,7 +121,13 @@ void main()
 	specialEventTriggerSetup();
 	timer1Config();
 	LATD7_bit = 0;
-	INTCON |= (1 << GIE) | (1 << PEIE);
+	
+#ifdef DEBUG_PLAY
+	pwmConfig();
+	UWR(codeToRam(uart_debugRead));
+#endif
+	
+	INTCON |= (1 << GIE) | (1 << PEIE);	/* Global interrupt */
 
 	for (;;)        					/* Repeat forever */
 	{
@@ -210,6 +221,7 @@ void main()
 			ptrIndex = 0;
 			sectorIndex = 0;
 			bufferFull = 0;
+			currentBuffer = 0;
 			
 			/* Read the first sector to the buffer */
 			if (Mmc_Read_Sector(sectorIndex, buffer0) != 0)
@@ -219,7 +231,10 @@ void main()
 			
 			/* Start the timer1 */
 			T1CON |= (1 << TMR1ON);
-			
+#ifdef DEBUG_PLAY
+			/* Start the PWM module */
+			pwmStart();
+#endif
 			/* Reading loop */
 			while (SLCT)				/* Wait until SLCT pressed */
 			{
@@ -245,6 +260,10 @@ void main()
 			
 			/* Stop the timer1 */
 			T1CON &= ~(1 << TMR1ON);
+#ifdef DEBUG_PLAY
+			/* Stop the PWM module */
+			pwmStop();
+#endif
 			Delay_ms(500);
 			
 			UWR(codeToRam(uart_done));
@@ -312,10 +331,16 @@ void interrupt()
 			/* Trigger the A/D conversion */
 			GO_bit = 1;
 		}
+		
 		else if (mode == 2)				/* Play mode */
 		{
+#ifdef DEBUG_PLAY
+			/* Change the PWM duty cycle */
+			CCPR2L = *(ptr + (ptrIndex++));
+#else
 			/* Send data to the DAC */
 			DACOUT = *(ptr + (ptrIndex++));
+#endif
 			
 			/* Swap the buffer */
 			if (ptrIndex == 512)					
@@ -365,10 +390,49 @@ void interrupt()
 	}
 }
 
+/**
+* Config timer1 for sampling interrupt
+*/
 void timer1Config(void)
 {
 	PIE1 = (1 << TMR1IE);
 	
 	TMR1H = 0xfe;
 	TMR1L = 0xc7;
+}
+
+/**
+* Setup PWM module for debug output using CCP2 module
+* CCP2 output is RB3, need to be configured via configuration bits
+*/
+void pwmConfig(void)
+{
+	PR2 = 77; 							/* 16.025 kHz */
+	TRISB &= ~(1 << RB3);				/* Output for PWM */
+	CCPR2L	= 128;						/* Initial duty cycle is 0 */
+	T2CON = (1 << TMR2ON);				/* Enable timer 2 */
+}
+
+/**
+* Start the PWM module
+*/
+void pwmStart(void)
+{
+	CCP2CON = (1 << CCP2M3) | (1 << CCP2M2);	/* PWM mode */
+}
+
+/**
+* Stop thw PWM module
+*/
+void pwmStop(void)
+{
+	CCP2CON = 0;
+}
+
+/**
+* Change the duty cycle of the PWM module
+*/
+void pwmChangeDutyCycle(uint8_t dutyCycle)
+{
+	CCPR2L = dutyCycle;
 }

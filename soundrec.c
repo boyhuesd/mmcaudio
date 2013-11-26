@@ -100,6 +100,12 @@ void main()
 {
 	unsigned char lastMode;
 	uint16_t i;
+	
+	/*---------------- Setup Port B weak pull-up ----------------------------- */
+	INTCON2 &= ~(1 << 7); // nRBPU = 0
+	
+	
+	
 
 	ptr = &buffer0[0];
 	currentBuffer = 0;
@@ -107,12 +113,16 @@ void main()
 	Delay_ms(100);
 
 	/**** END ADC INIT ****/
+	
+	/*---------------- Setup I/O ---------------------------------------------*/
 	TRISD = 0xff;
 	TRISA2_bit=1;
 	TRISD2_bit=1;
 	TRISD3_bit=1;
 	TRISD7_bit = 0;
-	TRISB=0;
+	//TRISB &= ~((1 << 0) + (1 << 1));
+	TRISB = 0x3f; // B0, B1 input; remains output
+	
 	TRISC = 0x00;
 
 	UART1_Init(9600);

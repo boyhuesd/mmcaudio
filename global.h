@@ -44,9 +44,9 @@
 #define _22_KSPS (45 - MEASURED_SAMPLING_PERIOD)
 #define _16_KSPS (62 - MEASURED_SAMPLING_PERIOD)
 
-#define SLCT RD2_bit
-#define OK RD3_bit
-#define DACOUT LATB
+#define SLCT RB0_bit
+#define OK RB1_bit
+#define DACOUT LATD
 #define TP0 LATD7_bit
 #define CS LATC2_bit
 #define CS_DIR TRISC2_bit

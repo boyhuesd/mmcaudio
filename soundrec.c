@@ -50,7 +50,7 @@ git push origin branch
 #include "adc.h"
 
 #define _UART_GUI_
-#define DEBUG_PLAY
+//#define DEBUG_PLAY
 
 /**
 * VARIABLE DECLARATION

@@ -112,10 +112,10 @@ void main()
 	/**** END ADC INIT ****/
 	
 	/*---------------- Setup I/O ---------------------------------------------*/
-	TRISD = 0xff; // output for DAC0808
+	TRISD = 0x00; // output for DAC0808
 	//TRISB &= ~((1 << 0) + (1 << 1));
-	TRISB = 0x3f; // B0, B1 input; remains output
-	TRISC |= (1 << 2); // output for CS pin
+	TRISB = 0xc0; // B0, B1 input; remains output
+	TRISC &= ~(1 << 2); // output for CS pin
 
 	UART1_Init(9600);
 	UWR(codeToRam(uart_welcome));

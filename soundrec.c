@@ -103,9 +103,6 @@ void main()
 	
 	/*---------------- Setup Port B weak pull-up ----------------------------- */
 	INTCON2 &= ~(1 << 7); // nRBPU = 0
-	
-	
-	
 
 	ptr = &buffer0[0];
 	currentBuffer = 0;
@@ -115,15 +112,10 @@ void main()
 	/**** END ADC INIT ****/
 	
 	/*---------------- Setup I/O ---------------------------------------------*/
-	TRISD = 0xff;
-	TRISA2_bit=1;
-	TRISD2_bit=1;
-	TRISD3_bit=1;
-	TRISD7_bit = 0;
+	TRISD = 0xff; // output for DAC0808
 	//TRISB &= ~((1 << 0) + (1 << 1));
 	TRISB = 0x3f; // B0, B1 input; remains output
-	
-	TRISC = 0x00;
+	TRISC |= (1 << 2); // output for CS pin
 
 	UART1_Init(9600);
 	UWR(codeToRam(uart_welcome));

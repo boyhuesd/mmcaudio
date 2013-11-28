@@ -114,15 +114,17 @@ void main()
 	/*---------------- Setup I/O ---------------------------------------------*/
 	TRISD = 0x00; // output for DAC0808
 	//TRISB &= ~((1 << 0) + (1 << 1));
-	TRISB = 0xc0; // B0, B1 input; remains output
+	TRISB = (1 << RB0) | (1 << RB1); // B0, B1 input; remains output
 	TRISC &= ~(1 << 2); // output for CS pin
+	
+	/*------------ Test code for DAC0808 -------------------------------------*/
+	LATD = 0x40;
 
 	UART1_Init(9600);
 	UWR(codeToRam(uart_welcome));
 	mmcBuiltinInit();
 	specialEventTriggerSetup();
 	timer1Config();
-	LATD7_bit = 0;
 	
 #ifdef DEBUG_PLAY
 	pwmConfig();
@@ -341,7 +343,7 @@ void interrupt()
 			CCPR2L = *(ptr + (ptrIndex++));
 #else
 			/* Send data to the DAC */
-			DACOUT = *(ptr + (ptrIndex++));
+			LATD = *(ptr + (ptrIndex++));
 #endif
 			
 			/* Swap the buffer */

@@ -28,15 +28,6 @@
 #define _R7 1
 #define _RESPOND_ERROR 0xff
 
-// Debug define
-//#define DEBUG
-#define WRITE_DEBUG
-//#define READ_DEBUG
-//#define HOME_TEST
-#define REINIT_MMC
-#define DEBUG_SELECT_TRACK
-#define ADD_TEST_POINT // for determine the sampling frequency
-
 // Sampling rate define (in microseconds)
 #define MEASURED_SAMPLING_PERIOD 31 /* Measured by oscilloscope */
 #define MMC_READ_DELAY 20
@@ -62,6 +53,23 @@
 #define ENC_22_KSPS 1
 #define ENC_16_KSPS 2
 
+/*--------- LCD Pin definitions ----------------------------------------------*/
+sbit LCD_RS at RB7_bit;
+sbit LCD_EN at RB6_bit;
+sbit LCD_D4 at RB5_bit;
+sbit LCD_D5 at RB4_bit;
+sbit LCD_D6 at RB3_bit;
+sbit LCD_D7 at RB2_bit;
+
+sbit LCD_RS_Direction at TRISB7_bit;
+sbit LCD_EN_Direction at TRISB6_bit;
+sbit LCD_D4_Direction at TRISB5_bit;
+sbit LCD_D5_Direction at TRISB4_bit;
+sbit LCD_D6_Direction at TRISB3_bit;
+sbit LCD_D7_Direction at TRISB2_bit;
+
+#define lcdClear()				Lcd_Cmd(_LCD_CLEAR)
+#define lcdDisplay(x, y, z) 	Lcd_Out(x, y, z);
 
 /**
 * Global variables 

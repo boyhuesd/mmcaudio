@@ -23,4 +23,15 @@ const char uart_reading[] = "Reading";
 const char uart_initReadError[] = "Initial buffering error";
 const char uart_debugRead[] = "Debug read";
 
+/*------------------- LCD String constant ------------------------------------*/
+const char lcd_welcome[] = "VOICE RECORDER";
+const char lcd_record[] = "> Record";
+const char lcd_play[] = "> Play";
+const char lcd_trackList[] = "> Track list";
+const char lcd_sampleRate[] = "> Sample Rate";
+const char lcd_writing[] = "Recording...";
+const char lcd_errorWrite[] = "Write error";
+const char lcd_done[] = "Completed!"
+
+
 #endif /* _STRING_H */

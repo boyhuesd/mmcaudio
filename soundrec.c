@@ -43,13 +43,12 @@ git push origin branch
 */
 
 #include <stdint.h>
-//#include "mmc.h"
 #include "string.h"
 #include "soundrec.h"
 #include "global.h"
 #include "adc.h"
 
-#define _UART_GUI_
+#define _UART_GUI_ 0
 //#define DEBUG_PLAY
 
 /**
@@ -62,7 +61,6 @@ static volatile uint16_t ptrIndex = 0;
 volatile uint8_t currentBuffer = 0;
 volatile uint8_t bufferFull = 0;
 
-//volatile unsigned char samplingRate = 1;
 volatile unsigned int mode = 0;
 volatile uint8_t text[10];
 
@@ -71,9 +69,6 @@ volatile uint8_t adcResult = 0;
 
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
-
-/* Debug variables */
-volatile uint32_t adcCount = 0;
 
 
 /**
@@ -109,21 +104,28 @@ void main()
 	adcInit();
 	Delay_ms(100);
 
-	/**** END ADC INIT ****/
 	
 	/*---------------- Setup I/O ---------------------------------------------*/
-	TRISD = 0x00; // output for DAC0808
-	//TRISB &= ~((1 << 0) + (1 << 1));
-	TRISB = (1 << RB0) | (1 << RB1); // B0, B1 input; remains output
-	TRISC &= ~(1 << 2); // output for CS pin
+	TRISD = 0x00; 							// Output for DAC0808
+	TRISB = (1 << RB0) | (1 << RB1); 		// B0, B1 input; remains output
+	TRISC &= ~(1 << 2); 					// Output for CS pin
 	
 	/*------------ Test code for DAC0808 -------------------------------------*/
 	LATD = 0x40;
 
+	/*------------ Welcome message -------------------------------------------*/
+#if _UART_GUI
 	UART1_Init(9600);
 	UWR(codeToRam(uart_welcome));
+#else
+	Lcd_Init();								// Init LCD for display
+	Lcd_Cmd(_LCD_CLEAR);
+	Lcd_Cmd(_LCD_CURSOR_OFF);
+	Lcd_Out(1, 2, codeToRam(lcd_welcome));
+#endif
+
 	mmcBuiltinInit();
-	specialEventTriggerSetup();
+	//specialEventTriggerSetup();
 	timer1Config();
 	
 #ifdef DEBUG_PLAY
@@ -131,16 +133,18 @@ void main()
 	UWR(codeToRam(uart_debugRead));
 #endif
 	
-	INTCON |= (1 << GIE) | (1 << PEIE);	/* Global interrupt */
+	INTCON |= (1 << GIE) | (1 << PEIE);		/* Global interrupt */
 
-	for (;;)        					/* Repeat forever */
+	for (;;)        						/* Repeat forever */
 	{
 		while (SLCT != 0)
 		{
 		}
-#ifdef _UART_GUI_
-		UWR(codeToRam(uart_menu));
 		
+#if _UART_GUI_
+/*------------------------ UART DEBUG mode -----------------------------------*/
+		UWR(codeToRam(uart_menu));
+
 		while (OK)	/* OK not pressed */
 		{
 			if (!SLCT)	/* SLCT */
@@ -172,12 +176,60 @@ void main()
 			
 			lastMode = mode;					
 		}
-		
+#endif
+
+#if !_UART_GUI
+/* ------------------- HD44780 LCD 16x2 display mode -------------------------*/
+	Lcd_Cmd(_LCD_CLEAR);               		// Clear display
+	
+	/* Menu loop */
+	while (OK)	/* OK not pressed */
+		{
+			if (!SLCT)	/* SLCT */
+			{
+				Delay_ms(300);
+				mode++;
+				if (mode == 5)
+				{
+					mode = 1;
+				}
+			}
+
+			if ((mode == 1) & (lastMode != mode))
+			{
+				lcdClear();
+				lcdDisplay(1, 2, codeToRam(lcd_record));
+			}
+			else if ((mode == 2) & (lastMode != mode))
+			{
+				lcdClear();
+				lcdDisplay(1, 2, codeToRam(lcd_play));
+			}
+			else if ((mode == 3) & (lastMode != mode))
+			{
+				lcdClear();
+				lcdDisplay(1, 2, codeToRam(lcd_trackList));
+			}
+			else if ((mode == 4) & (lastMode != mode))
+			{
+				lcdClear();
+				lcdDisplay(1, 2, codeToRam(lcd_sampleRate));
+			}
+			
+			lastMode = mode;					
+		}
+#endif		
+
 		/* Record mode */
 		if (mode == 1)
 		{
 			/* Write routine */
+#if _UART_GUI			
 			UWR(codeToRam(uart_writing));
+#else
+			lcdCLear();
+			lcdDisplay(1, 2, codeToRam(lcd_writing));
+#endif			
 			ptr = buffer0;
 			ptrIndex = 0;
 			sectorIndex = 0;
@@ -193,14 +245,19 @@ void main()
 					{
 						if (Mmc_Write_Sector(sectorIndex++, buffer0) != 0)
 						{
-							UWR(codeToRam(uart_errorWrite));
+
+#if _UART_GUI			
+						UWR(codeToRam(uart_errorWrite));
+#endif
 						}
 					}
 					else				/* Write buffer 1 */
 					{
 						if (Mmc_Write_Sector(sectorIndex++, buffer1) != 0)
 						{
+#if _UART_GUI						
 							UWR(codeToRam(uart_errorWrite));
+#endif
 						}
 					}
 				}
@@ -210,10 +267,14 @@ void main()
 			
 			/* Write complete message */
 			intToStr(sectorIndex, text);
+#if _UART_GUI
 			UWR(codeToRam(uart_done));
 			UWR(text);
-			intToStr(adcCount, text);
-			UWR(text);
+#else
+			lcdClear();
+			lcdDisplay(1, 2, codeToRam(lcd_done));
+			lcdDisplay(2, 2, text);
+#endif
 		}
 
 		/* Play mode */
@@ -297,7 +358,9 @@ void main()
 		
 		mode == 1;
 		
-#endif
+
+
+
 	}
 }
 

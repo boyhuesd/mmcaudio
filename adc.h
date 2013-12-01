@@ -9,8 +9,5 @@
 
 void adcInit(void);
 uint8_t adcRead(void);
-void specialEventTriggerSetup(void);
-void specialEventTriggerStart(void);
-
 
 #endif /* _ADC_H */

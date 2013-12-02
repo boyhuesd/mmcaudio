@@ -27,11 +27,11 @@ const char uart_debugRead[] = "Debug read";
 const char lcd_welcome[] = "VOICE RECORDER";
 const char lcd_record[] = "> Record";
 const char lcd_play[] = "> Play";
-const char lcd_trackList[] = "> Track list";
 const char lcd_sampleRate[] = "> Sample Rate";
 const char lcd_writing[] = "Recording...";
 const char lcd_errorWrite[] = "Write error";
-const char lcd_done[] = "Completed!"
+const char lcd_done[] = "Completed!";
+const char lcd_playing[] = "Playing...";
 
 
 #endif /* _STRING_H */

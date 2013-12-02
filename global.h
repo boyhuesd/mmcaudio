@@ -92,5 +92,14 @@ extern volatile uint8_t currentBuffer;
 extern volatile uint8_t bufferFull;
 
 /* For track management */
+#define			ID0 0xfe
+#define 		ID1 0xf1
+#define			ID2	0xf2
+#define 		ID3	0xf3
+
+#define _INFO_SECTOR_		0
+
+#define Mmc_Write_Sector(index, buffer) mmcWrite(index, buffer)
+#define Mmc_Read_Sector(index, buffer) mmcRead(index, buffer)
 
 #endif

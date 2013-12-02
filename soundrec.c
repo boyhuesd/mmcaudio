@@ -47,6 +47,7 @@ git push origin branch
 #include "soundrec.h"
 #include "global.h"
 #include "adc.h"
+#include "track.h"
 
 #define _UART_GUI_ 0
 //#define DEBUG_PLAY
@@ -70,13 +71,21 @@ volatile uint8_t adcResult = 0;
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 
+/*----- Variables for track management ---------------------------------------*/
+struct songInfo
+{
+	uint32_t address;
+	uint32_t nextAddress;
+	uint8_t samplingRate;
+};
+
 
 /**
 * FUNCTION DECLARATION
 */
 void mmcBuiltinInit(void);
 void timer1Config(void);
-void pwmCOnfig(void);
+void pwmConfig(void);
 void pwmStart(void);
 void pwmStop(void);
 void pwmChangeDutyCycle(uint8_t dutyCycle);
@@ -95,6 +104,7 @@ void main()
 {
 	unsigned char lastMode;
 	uint16_t i;
+	uint32_t newTrackAdd;
 	
 	/*---------------- Setup Port B weak pull-up ----------------------------- */
 	INTCON2 &= ~(1 << 7); // nRBPU = 0
@@ -229,11 +239,13 @@ void main()
 #else
 			lcdCLear();
 			lcdDisplay(1, 2, codeToRam(lcd_writing));
-#endif			
+#endif	
+			/* Variables init */
 			ptr = buffer0;
 			ptrIndex = 0;
-			sectorIndex = 0;
+			sectorIndex = trackGetNew();
 			bufferFull = 0;
+			
 			
 			T1CON = (1 << TMR1ON);
 			while (SLCT)				/* Wait until SLCT pressed */
@@ -281,7 +293,12 @@ void main()
 		else if (mode == 2) 
 		{
 			/* Read routine */
+#if _UART_GUI			
 			UWR(codeToRam(uart_reading));
+#else
+			lcdClear();
+			lcdDisplay(1, 2, codeToRam(lcd_playing));
+#endif
 			ptr = buffer0;
 			ptrIndex = 0;
 			sectorIndex = 0;
@@ -291,7 +308,9 @@ void main()
 			/* Read the first sector to the buffer */
 			if (Mmc_Read_Sector(sectorIndex, buffer0) != 0)
 			{
-				UWR(codeToRam(uart_initReadError));
+#if _UART_GUI
+				UWR(codeToRam(uart_initReadError));	/* First buffer error */
+#endif
 			}
 			
 			/* Start the timer1 */
@@ -310,14 +329,18 @@ void main()
 					{
 						if (Mmc_Read_Sector(sectorIndex++, buffer0) != 0)
 						{
+#if _UART_GUI						
 							UWR(codeToRam(uart_errorRead));
+#endif						
 						}
 					}
 					else				/* Write buffer 1 */
 					{
 						if (Mmc_Read_Sector(sectorIndex++, buffer1) != 0)
 						{
+#if _UART_GUI						
 							UWR(codeToRam(uart_errorRead));
+#endif
 						}
 					}
 				}
@@ -330,8 +353,12 @@ void main()
 			pwmStop();
 #endif
 			Delay_ms(500);
-			
+#if _UART_GUI			
 			UWR(codeToRam(uart_done));
+#else
+			lcdClear();
+			lcdDisplay(1, 2, codeToRam(lcd_done));
+#endif
 		}
 		
 		/* Test read mode */
@@ -357,10 +384,6 @@ void main()
 		}
 		
 		mode == 1;
-		
-
-
-
 	}
 }
 

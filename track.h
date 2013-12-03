@@ -9,17 +9,17 @@
 * 8-bit samplingRate (prev track) + 32-bit new track address
 */
 
-void trackNext(uint32_t address, uint8_t samplingRate) 
+void trackNext(uint32_t address, uint8_t samplingRate);
 
 /*
 * This function returns free address location for a new unrecorded track
 */
-uint32_t trackFree(void)
+uint32_t trackFree(void);
 
 /*
 * This function get info for a recorded song
 */
-struct songInfo trackGet(uint8_t track)
+struct songInfo trackGet(uint8_t track);
 
 /*
 * This function return total tracks available on the card.
@@ -27,6 +27,6 @@ struct songInfo trackGet(uint8_t track)
 * If the security ID is not valid, it will clear the sector a rewrite a new
 * track management sector.
 */
-uint8_t trackGetTotal(void)
+uint8_t trackGetTotal(void);
 
-#endif _TRACK_H
+#endif /* _TRACK_H */

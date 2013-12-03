@@ -62,23 +62,34 @@ static volatile uint16_t ptrIndex = 0;
 volatile uint8_t currentBuffer = 0;
 volatile uint8_t bufferFull = 0;
 
-volatile unsigned int mode = 0;
 volatile uint8_t text[10];
 
 volatile uint32_t sectorIndex = 0;
 volatile uint8_t adcResult = 0;
 
+/*---- Variables for hardware timing -----------------------------------------*/
+static volatile uint8_t samplingRate = _16KHZ;
+static volatile uint8_t timerH = _16KHZ_HIGHBYTE;
+static volatile uint8_t timerL = _16KHZ_LOWBYTE;
+
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
 
-/*----- Variables for track management ---------------------------------------*/
-struct songInfo
-{
-	uint32_t address;
-	uint32_t nextAddress;
-	uint8_t samplingRate;
-};
 
+/*--------- LCD Pin definitions ----------------------------------------------*/
+sbit LCD_RS at RB7_bit;
+sbit LCD_EN at RB6_bit;
+sbit LCD_D4 at RB5_bit;
+sbit LCD_D5 at RB4_bit;
+sbit LCD_D6 at RB3_bit;
+sbit LCD_D7 at RB2_bit;
+
+sbit LCD_RS_Direction at TRISB7_bit;
+sbit LCD_EN_Direction at TRISB6_bit;
+sbit LCD_D4_Direction at TRISB5_bit;
+sbit LCD_D5_Direction at TRISB4_bit;
+sbit LCD_D6_Direction at TRISB3_bit;
+sbit LCD_D7_Direction at TRISB2_bit;
 
 /**
 * FUNCTION DECLARATION
@@ -103,8 +114,11 @@ char* codeToRam(const char* ctxt)
 void main()
 {
 	unsigned char lastMode;
-	uint16_t i;
-	uint32_t newTrackAdd;
+	unsigned int mode = 0;
+	uint8_t temp;
+	uint32_t trackFirstSector;
+	uint8_t totalTrack;
+	struct songInfo trackInfo;
 	
 	/*---------------- Setup Port B weak pull-up ----------------------------- */
 	INTCON2 &= ~(1 << 7); // nRBPU = 0
@@ -135,8 +149,6 @@ void main()
 #endif
 
 	mmcBuiltinInit();
-	//specialEventTriggerSetup();
-	timer1Config();
 	
 #ifdef DEBUG_PLAY
 	pwmConfig();
@@ -161,7 +173,7 @@ void main()
 			{
 				Delay_ms(300);
 				mode++;
-				if (mode == 5)
+				if (mode == 4)
 				{
 					mode = 1;
 				}
@@ -177,11 +189,7 @@ void main()
 			}
 			else if ((mode == 3) & (lastMode != mode))
 			{
-				UWR(codeToRam(uart_trackList));
-			}
-			else if ((mode == 4) & (lastMode != mode))
-			{
-				UWR(codeToRam(uart_changeSampleRate));
+				UWR(codeToRam(uart_sampleRate));
 			}
 			
 			lastMode = mode;					
@@ -218,7 +226,7 @@ void main()
 			else if ((mode == 3) & (lastMode != mode))
 			{
 				lcdClear();
-				lcdDisplay(1, 2, codeToRam(lcd_trackList));
+				lcdDisplay(1, 2, codeToRam(lcd_totaltrack));
 			}
 			else if ((mode == 4) & (lastMode != mode))
 			{
@@ -233,21 +241,24 @@ void main()
 		/* Record mode */
 		if (mode == 1)
 		{
+			/* Config the timer for hardware timing */
+			timer1Config();
+
 			/* Write routine */
 #if _UART_GUI			
 			UWR(codeToRam(uart_writing));
 #else
-			lcdCLear();
+			lcdClear();
 			lcdDisplay(1, 2, codeToRam(lcd_writing));
 #endif	
 			/* Variables init */
 			ptr = buffer0;
 			ptrIndex = 0;
-			sectorIndex = trackGetNew();
+			sectorIndex = trackFree();	/* Get address for new track */
+			trackFirstSector = sectorIndex;
 			bufferFull = 0;
 			
-			
-			T1CON = (1 << TMR1ON);
+			T1CON = (1 << TMR1ON);		/* Start hardware timer */
 			while (SLCT)				/* Wait until SLCT pressed */
 			{			
 				if (bufferFull == 1)
@@ -257,7 +268,6 @@ void main()
 					{
 						if (Mmc_Write_Sector(sectorIndex++, buffer0) != 0)
 						{
-
 #if _UART_GUI			
 						UWR(codeToRam(uart_errorWrite));
 #endif
@@ -275,10 +285,14 @@ void main()
 				}
 			}
 			T1CON &= ~(1 << TMR1ON);
+			
+			trackNext(sectorIndex, samplingRate); /* Write the track info */
+			
 			Delay_ms(500);
 			
+			
 			/* Write complete message */
-			intToStr(sectorIndex, text);
+			intToStr((sectorIndex - trackFirstSector), text);	/* Calculate track length */
 #if _UART_GUI
 			UWR(codeToRam(uart_done));
 			UWR(text);
@@ -292,6 +306,47 @@ void main()
 		/* Play mode */
 		else if (mode == 2) 
 		{
+			totalTrack = trackGetTotal(); /* Get total track for menu display */
+			
+			if (totalTrack == 0) { /* No tracks avaialbe */
+				lcdClear();
+				lcdDisplay(1, 2, codeToRam(lcd_t_notrack));
+			}
+			else { /* Select the track */
+#if !_UART_GUI
+				temp = mode;
+				lcdClear();
+				
+				/* Menu loop */
+				while (OK) { /* OK not pressed */
+					if (!SLCT) { /* SLCT */
+						Delay_ms(300);
+						mode++;
+						if (mode == (totalTrack+1)) {
+							mode = 1;
+						}
+					}
+					
+					/* Display track on the screen */
+					if (lastMode != mode) {
+						intToStr(mode, text);
+						lcdClear();
+						lcdDisplay(1, 2, text);
+					}
+					
+					lastMode = mode;					
+				}
+#endif
+			}
+			
+			/* Get the track information to play */
+			trackInfo = trackGet(mode);
+			mode = temp;	/* Return saved state to mode !important! */
+			samplingRate = trackInfo.samplingRate; /* Change sampling rate */
+			
+			/* Config the timer for hardware timing */
+			timer1Config();
+			
 			/* Read routine */
 #if _UART_GUI			
 			UWR(codeToRam(uart_reading));
@@ -301,7 +356,7 @@ void main()
 #endif
 			ptr = buffer0;
 			ptrIndex = 0;
-			sectorIndex = 0;
+			sectorIndex = trackInfo.address;
 			bufferFull = 0;
 			currentBuffer = 0;
 			
@@ -320,7 +375,7 @@ void main()
 			pwmStart();
 #endif
 			/* Reading loop */
-			while (SLCT)				/* Wait until SLCT pressed */
+			while (sectorIndex < trackInfo.nextAddress)				/* Wait until SLCT pressed */
 			{
 				if (bufferFull == 1)
 				{
@@ -361,26 +416,47 @@ void main()
 #endif
 		}
 		
-		/* Test read mode */
-		else if (mode == 3)
-		{
-			/* Empty the buffer */
-			for (i = 0; i < 512; i++)
-			{
-				buffer0[i] = 0;
-				buffer1[i] = 0;
+		/* Change sampling rate */
+		else if (mode == 3)	{
+			temp = mode; /* Save current mode state */
+			mode = 1;
+
+#if !_UART_GUI
+			Lcd_Cmd(_LCD_CLEAR);               		
+			/* Menu loop */
+			while (OK) { /* OK not pressed */
+				if (!SLCT) { /* SLCT */
+					Delay_ms(300);
+					mode++;
+					if (mode == 3) {
+						mode = 1;
+					}
+				}
+
+				if ((mode == 1) & (lastMode != mode)) {
+					lcdClear();
+					lcdDisplay(1, 2, codeToRam(lcd_s_16khz));
+				}
+				else if ((mode == 2) & (lastMode != mode)) {
+					lcdClear();
+					lcdDisplay(1, 2, codeToRam(lcd_s_8khz));
+				}
+				
+				lastMode = mode;					
 			}
 			
-			/* Load the data to buffers */
-			Mmc_Read_Sector(5, buffer0);
-			Mmc_Read_Sector(10, buffer1);
-			
-			/* Print the buffer to the screen */
-			for (i = 0; i < 512; i++)
-			{
-				intToStr(buffer0[i], text);
-				UWR(text);
+			if (mode == 1) {
+				samplingRate = _16KHZ;
 			}
+			else if (mode == 2) {
+				samplingRate = _8KHZ;
+			}
+			
+			lcdClear();
+			lcdDisplay(1, 2, codeToRam(lcd_saved));
+			
+			mode = temp;
+#endif	
 		}
 		
 		mode == 1;
@@ -413,8 +489,8 @@ void interrupt()
 		/* Load a new timer cycle */
 		/* For 8kHz: 0xfd8e
 			For 16kHz: 0xfec7*/
-		TMR1H = 0xfe;
-		TMR1L = 0xc7;
+		TMR1H = timerH;
+		TMR1L = timerL;
 		
 		if (mode == 1)					/* Record mode */
 		{
@@ -487,8 +563,17 @@ void timer1Config(void)
 {
 	PIE1 = (1 << TMR1IE);
 	
-	TMR1H = 0xfe;
-	TMR1L = 0xc7;
+	if (samplingRate == _16KHZ) {
+		timerH = _16KHZ_HIGHBYTE;
+		timerL = _16KHZ_LOWBYTE;
+	}
+	else if (samplingRate == _8KHZ) {
+		timerH = _8KHZ_HIGHBYTE;
+		timerL = _8KHZ_LOWBYTE;
+	}
+	
+	TMR1H = timerH;
+	TMR1L = timerL;
 }
 
 /**

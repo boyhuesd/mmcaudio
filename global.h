@@ -53,20 +53,7 @@
 #define ENC_22_KSPS 1
 #define ENC_16_KSPS 2
 
-/*--------- LCD Pin definitions ----------------------------------------------*/
-sbit LCD_RS at RB7_bit;
-sbit LCD_EN at RB6_bit;
-sbit LCD_D4 at RB5_bit;
-sbit LCD_D5 at RB4_bit;
-sbit LCD_D6 at RB3_bit;
-sbit LCD_D7 at RB2_bit;
 
-sbit LCD_RS_Direction at TRISB7_bit;
-sbit LCD_EN_Direction at TRISB6_bit;
-sbit LCD_D4_Direction at TRISB5_bit;
-sbit LCD_D5_Direction at TRISB4_bit;
-sbit LCD_D6_Direction at TRISB3_bit;
-sbit LCD_D7_Direction at TRISB2_bit;
 
 #define lcdClear()				Lcd_Cmd(_LCD_CLEAR)
 #define lcdDisplay(x, y, z) 	Lcd_Out(x, y, z);
@@ -91,15 +78,32 @@ extern volatile uint8_t buffer1[512];
 extern volatile uint8_t currentBuffer;
 extern volatile uint8_t bufferFull;
 
+/*----- Variables for track management ---------------------------------------*/
+struct songInfo
+{
+	uint32_t address;
+	uint32_t nextAddress;
+	uint8_t samplingRate;
+};
+
 /* For track management */
 #define			ID0 0xfe
 #define 		ID1 0xf1
 #define			ID2	0xf2
 #define 		ID3	0xf3
 
-#define _INFO_SECTOR_		0
+#define INFO_SECTOR			0
+#define FIRST_DATA_SECTOR 	64
 
-#define Mmc_Write_Sector(index, buffer) mmcWrite(index, buffer)
-#define Mmc_Read_Sector(index, buffer) mmcRead(index, buffer)
+#define mmcWrite(index, buffer) Mmc_Write_Sector(index, buffer) 
+#define mmcRead(index, buffer) Mmc_Read_Sector(index, buffer) 
 
-#endif
+/* Definitions for hardware timing */
+#define _16KHZ				0
+#define _8KHZ				1
+#define _16KHZ_HIGHBYTE		0xfe
+#define	_16KHZ_LOWBYTE		0xc7
+#define _8KHZ_HIGHBYTE		0xfd
+#define _8KHZ_LOWBYTE		0x8e
+
+#endif /* _GLOBAL_H */

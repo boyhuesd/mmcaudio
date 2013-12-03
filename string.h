@@ -32,6 +32,11 @@ const char lcd_writing[] = "Recording...";
 const char lcd_errorWrite[] = "Write error";
 const char lcd_done[] = "Completed!";
 const char lcd_playing[] = "Playing...";
+const char lcd_s_16khz[] = "> 16Khz";
+const char lcd_s_8khz[] = "> 8khz";
+const char lcd_saved[] = "Saved!";
+const char lcd_t_notrack[] = "No track!";
+const char lcd_totaltrack[] = "> Total track";
 
 
 #endif /* _STRING_H */

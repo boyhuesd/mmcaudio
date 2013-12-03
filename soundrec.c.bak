@@ -43,13 +43,13 @@ git push origin branch
 */
 
 #include <stdint.h>
-//#include "mmc.h"
 #include "string.h"
 #include "soundrec.h"
 #include "global.h"
 #include "adc.h"
+#include "track.h"
 
-#define _UART_GUI_
+#define _UART_GUI_ 0
 //#define DEBUG_PLAY
 
 /**
@@ -62,26 +62,25 @@ static volatile uint16_t ptrIndex = 0;
 volatile uint8_t currentBuffer = 0;
 volatile uint8_t bufferFull = 0;
 
-//volatile unsigned char samplingRate = 1;
-volatile unsigned int mode = 0;
 volatile uint8_t text[10];
 
 volatile uint32_t sectorIndex = 0;
 volatile uint8_t adcResult = 0;
 
+/*---- Variables for hardware timing -----------------------------------------*/
+static volatile uint8_t samplingRate = _16KHZ;
+static volatile uint8_t timerH = _16KHZ_HIGHBYTE;
+static volatile uint8_t timerL = _16KHZ_LOWBYTE;
+
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
-
-/* Debug variables */
-volatile uint32_t adcCount = 0;
-
 
 /**
 * FUNCTION DECLARATION
 */
 void mmcBuiltinInit(void);
 void timer1Config(void);
-void pwmCOnfig(void);
+void pwmConfig(void);
 void pwmStart(void);
 void pwmStop(void);
 void pwmChangeDutyCycle(uint8_t dutyCycle);
@@ -99,7 +98,11 @@ char* codeToRam(const char* ctxt)
 void main()
 {
 	unsigned char lastMode;
-	uint16_t i;
+	unsigned int mode = 0;
+	uint8_t temp;
+	uint32_t trackFirstSector;
+	uint8_t totalTrack;
+	struct songInfo trackInfo;
 	
 	/*---------------- Setup Port B weak pull-up ----------------------------- */
 	INTCON2 &= ~(1 << 7); // nRBPU = 0
@@ -109,45 +112,52 @@ void main()
 	adcInit();
 	Delay_ms(100);
 
-	/**** END ADC INIT ****/
 	
 	/*---------------- Setup I/O ---------------------------------------------*/
-	TRISD = 0x00; // output for DAC0808
-	//TRISB &= ~((1 << 0) + (1 << 1));
-	TRISB = (1 << RB0) | (1 << RB1); // B0, B1 input; remains output
-	TRISC &= ~(1 << 2); // output for CS pin
+	TRISD = 0x00; 							// Output for DAC0808
+	TRISB = (1 << RB0) | (1 << RB1); 		// B0, B1 input; remains output
+	TRISC &= ~(1 << 2); 					// Output for CS pin
 	
 	/*------------ Test code for DAC0808 -------------------------------------*/
 	LATD = 0x40;
 
+	/*------------ Welcome message -------------------------------------------*/
+#if _UART_GUI
 	UART1_Init(9600);
 	UWR(codeToRam(uart_welcome));
+#else
+	Lcd_Init();								// Init LCD for display
+	Lcd_Cmd(_LCD_CLEAR);
+	Lcd_Cmd(_LCD_CURSOR_OFF);
+	Lcd_Out(1, 2, codeToRam(lcd_welcome));
+#endif
+
 	mmcBuiltinInit();
-	specialEventTriggerSetup();
-	timer1Config();
 	
 #ifdef DEBUG_PLAY
 	pwmConfig();
 	UWR(codeToRam(uart_debugRead));
 #endif
 	
-	INTCON |= (1 << GIE) | (1 << PEIE);	/* Global interrupt */
+	INTCON |= (1 << GIE) | (1 << PEIE);		/* Global interrupt */
 
-	for (;;)        					/* Repeat forever */
+	for (;;)        						/* Repeat forever */
 	{
 		while (SLCT != 0)
 		{
 		}
-#ifdef _UART_GUI_
-		UWR(codeToRam(uart_menu));
 		
+#if _UART_GUI_
+/*------------------------ UART DEBUG mode -----------------------------------*/
+		UWR(codeToRam(uart_menu));
+
 		while (OK)	/* OK not pressed */
 		{
 			if (!SLCT)	/* SLCT */
 			{
 				Delay_ms(300);
 				mode++;
-				if (mode == 5)
+				if (mode == 4)
 				{
 					mode = 1;
 				}
@@ -163,27 +173,76 @@ void main()
 			}
 			else if ((mode == 3) & (lastMode != mode))
 			{
-				UWR(codeToRam(uart_trackList));
-			}
-			else if ((mode == 4) & (lastMode != mode))
-			{
-				UWR(codeToRam(uart_changeSampleRate));
+				UWR(codeToRam(uart_sampleRate));
 			}
 			
 			lastMode = mode;					
 		}
-		
+#endif
+
+#if !_UART_GUI
+/* ------------------- HD44780 LCD 16x2 display mode -------------------------*/
+	Lcd_Cmd(_LCD_CLEAR);               		// Clear display
+	
+	/* Menu loop */
+	while (OK)	/* OK not pressed */
+		{
+			if (!SLCT)	/* SLCT */
+			{
+				Delay_ms(300);
+				mode++;
+				if (mode == 5)
+				{
+					mode = 1;
+				}
+			}
+
+			if ((mode == 1) & (lastMode != mode))
+			{
+				lcdClear();
+				lcdDisplay(1, 2, codeToRam(lcd_record));
+			}
+			else if ((mode == 2) & (lastMode != mode))
+			{
+				lcdClear();
+				lcdDisplay(1, 2, codeToRam(lcd_play));
+			}
+			else if ((mode == 3) & (lastMode != mode))
+			{
+				lcdClear();
+				lcdDisplay(1, 2, codeToRam(lcd_totaltrack));
+			}
+			else if ((mode == 4) & (lastMode != mode))
+			{
+				lcdClear();
+				lcdDisplay(1, 2, codeToRam(lcd_sampleRate));
+			}
+			
+			lastMode = mode;					
+		}
+#endif		
+
 		/* Record mode */
 		if (mode == 1)
 		{
+			/* Config the timer for hardware timing */
+			timer1Config();
+
 			/* Write routine */
+#if _UART_GUI			
 			UWR(codeToRam(uart_writing));
+#else
+			lcdClear();
+			lcdDisplay(1, 2, codeToRam(lcd_writing));
+#endif	
+			/* Variables init */
 			ptr = buffer0;
 			ptrIndex = 0;
-			sectorIndex = 0;
+			sectorIndex = trackFree();	/* Get address for new track */
+			trackFirstSector = sectorIndex;
 			bufferFull = 0;
 			
-			T1CON = (1 << TMR1ON);
+			T1CON = (1 << TMR1ON);		/* Start hardware timer */
 			while (SLCT)				/* Wait until SLCT pressed */
 			{			
 				if (bufferFull == 1)
@@ -193,44 +252,104 @@ void main()
 					{
 						if (Mmc_Write_Sector(sectorIndex++, buffer0) != 0)
 						{
-							UWR(codeToRam(uart_errorWrite));
+#if _UART_GUI			
+						UWR(codeToRam(uart_errorWrite));
+#endif
 						}
 					}
 					else				/* Write buffer 1 */
 					{
 						if (Mmc_Write_Sector(sectorIndex++, buffer1) != 0)
 						{
+#if _UART_GUI						
 							UWR(codeToRam(uart_errorWrite));
+#endif
 						}
 					}
 				}
 			}
 			T1CON &= ~(1 << TMR1ON);
+			
+			trackNext(sectorIndex, samplingRate); /* Write the track info */
+			
 			Delay_ms(500);
 			
+			
 			/* Write complete message */
-			intToStr(sectorIndex, text);
+			intToStr((sectorIndex - trackFirstSector), text);	/* Calculate track length */
+#if _UART_GUI
 			UWR(codeToRam(uart_done));
 			UWR(text);
-			intToStr(adcCount, text);
-			UWR(text);
+#else
+			lcdClear();
+			lcdDisplay(1, 2, codeToRam(lcd_done));
+			lcdDisplay(2, 2, text);
+#endif
 		}
 
 		/* Play mode */
 		else if (mode == 2) 
 		{
+			totalTrack = trackGetTotal(); /* Get total track for menu display */
+			
+			if (totalTrack == 0) { /* No tracks avaialbe */
+				lcdClear();
+				lcdDisplay(1, 2, codeToRam(lcd_t_notrack));
+			}
+			else { /* Select the track */
+#if !_UART_GUI
+				temp = mode;
+				lcdClear();
+				
+				/* Menu loop */
+				while (OK) { /* OK not pressed */
+					if (!SLCT) { /* SLCT */
+						Delay_ms(300);
+						mode++;
+						if (mode == (totalTrack+1)) {
+							mode = 1;
+						}
+					}
+					
+					/* Display track on the screen */
+					if (lastMode != mode) {
+						intToStr(mode, text);
+						lcdClear();
+						lcdDisplay(1, 2, text);
+					}
+					
+					lastMode = mode;					
+				}
+#endif
+			}
+			
+			/* Get the track information to play */
+			trackInfo = trackGet(mode);
+			mode = temp;	/* Return saved state to mode !important! */
+			samplingRate = trackInfo.samplingRate; /* Change sampling rate */
+			
+			/* Config the timer for hardware timing */
+			timer1Config();
+			
 			/* Read routine */
+#if _UART_GUI			
 			UWR(codeToRam(uart_reading));
+#else
+			lcdClear();
+			lcdDisplay(1, 2, codeToRam(lcd_playing));
+#endif
 			ptr = buffer0;
 			ptrIndex = 0;
-			sectorIndex = 0;
+			sectorIndex = trackInfo.address;
 			bufferFull = 0;
 			currentBuffer = 0;
 			
 			/* Read the first sector to the buffer */
 			if (Mmc_Read_Sector(sectorIndex, buffer0) != 0)
 			{
-				UWR(codeToRam(uart_initReadError));
+#if _UART_GUI
+				UWR(codeToRam(uart_initReadError));	/* First buffer error */
+#endif
 			}
 			
 			/* Start the timer1 */
@@ -240,7 +359,7 @@ void main()
 			pwmStart();
 #endif
 			/* Reading loop */
-			while (SLCT)				/* Wait until SLCT pressed */
+			while (sectorIndex < trackInfo.nextAddress)				/* Wait until SLCT pressed */
 			{
 				if (bufferFull == 1)
 				{
@@ -249,14 +368,18 @@ void main()
 					{
 						if (Mmc_Read_Sector(sectorIndex++, buffer0) != 0)
 						{
+#if _UART_GUI						
 							UWR(codeToRam(uart_errorRead));
+#endif						
 						}
 					}
 					else				/* Write buffer 1 */
 					{
 						if (Mmc_Read_Sector(sectorIndex++, buffer1) != 0)
 						{
+#if _UART_GUI						
 							UWR(codeToRam(uart_errorRead));
+#endif
 						}
 					}
 				}
@@ -269,35 +392,58 @@ void main()
 			pwmStop();
 #endif
 			Delay_ms(500);
-			
+#if _UART_GUI			
 			UWR(codeToRam(uart_done));
+#else
+			lcdClear();
+			lcdDisplay(1, 2, codeToRam(lcd_done));
+#endif
 		}
 		
-		/* Test read mode */
-		else if (mode == 3)
-		{
-			/* Empty the buffer */
-			for (i = 0; i < 512; i++)
-			{
-				buffer0[i] = 0;
-				buffer1[i] = 0;
+		/* Change sampling rate */
+		else if (mode == 3)	{
+			temp = mode; /* Save current mode state */
+			mode = 1;
+
+#if !_UART_GUI
+			Lcd_Cmd(_LCD_CLEAR);               		
+			/* Menu loop */
+			while (OK) { /* OK not pressed */
+				if (!SLCT) { /* SLCT */
+					Delay_ms(300);
+					mode++;
+					if (mode == 3) {
+						mode = 1;
+					}
+				}
+
+				if ((mode == 1) & (lastMode != mode)) {
+					lcdClear();
+					lcdDisplay(1, 2, codeToRam(lcd_s_16khz));
+				}
+				else if ((mode == 2) & (lastMode != mode)) {
+					lcdClear();
+					lcdDisplay(1, 2, codeToRam(lcd_s_8khz));
+				}
+				
+				lastMode = mode;					
 			}
 			
-			/* Load the data to buffers */
-			Mmc_Read_Sector(5, buffer0);
-			Mmc_Read_Sector(10, buffer1);
-			
-			/* Print the buffer to the screen */
-			for (i = 0; i < 512; i++)
-			{
-				intToStr(buffer0[i], text);
-				UWR(text);
+			if (mode == 1) {
+				samplingRate = _16KHZ;
 			}
+			else if (mode == 2) {
+				samplingRate = _8KHZ;
+			}
+			
+			lcdClear();
+			lcdDisplay(1, 2, codeToRam(lcd_saved));
+			
+			mode = temp;
+#endif	
 		}
 		
 		mode == 1;
-		
-#endif
 	}
 }
 
@@ -327,8 +473,8 @@ void interrupt()
 		/* Load a new timer cycle */
 		/* For 8kHz: 0xfd8e
 			For 16kHz: 0xfec7*/
-		TMR1H = 0xfe;
-		TMR1L = 0xc7;
+		TMR1H = timerH;
+		TMR1L = timerL;
 		
 		if (mode == 1)					/* Record mode */
 		{
@@ -343,7 +489,7 @@ void interrupt()
 			CCPR2L = *(ptr + (ptrIndex++));
 #else
 			/* Send data to the DAC */
-			DACOUT = *(ptr + (ptrIndex++));
+			LATD = *(ptr + (ptrIndex++));
 #endif
 			
 			/* Swap the buffer */
@@ -401,8 +547,17 @@ void timer1Config(void)
 {
 	PIE1 = (1 << TMR1IE);
 	
-	TMR1H = 0xfe;
-	TMR1L = 0xc7;
+	if (samplingRate == _16KHZ) {
+		timerH = _16KHZ_HIGHBYTE;
+		timerL = _16KHZ_LOWBYTE;
+	}
+	else if (samplingRate == _8KHZ) {
+		timerH = _8KHZ_HIGHBYTE;
+		timerL = _8KHZ_LOWBYTE;
+	}
+	
+	TMR1H = timerH;
+	TMR1L = timerL;
 }
 
 /**

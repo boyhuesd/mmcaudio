@@ -47,9 +47,8 @@ git push origin branch
 #include "soundrec.h"
 #include "global.h"
 #include "adc.h"
-#include "track.h"
 
-#define _UART_GUI_ 0
+//#define _UART_GUI_
 //#define DEBUG_PLAY
 
 /**
@@ -58,37 +57,84 @@ git push origin branch
 volatile uint8_t buffer0[512];			/* Buffers for ADC result storage */
 volatile uint8_t buffer1[512];
 static volatile uint8_t *ptr;
-static volatile uint16_t ptrIndex = 0;
-volatile uint8_t currentBuffer = 0;
-volatile uint8_t bufferFull = 0;
-
-volatile uint8_t text[10];
-
-volatile uint32_t sectorIndex = 0;
-volatile uint8_t adcResult = 0;
+static volatile uint16_t ptrIndex;
+volatile uint8_t currentBuffer;
+volatile uint8_t bufferFull;
+volatile uint8_t mode;
+volatile uint8_t adcResult;
+volatile uint8_t totalTrack;
 
 /*---- Variables for hardware timing -----------------------------------------*/
 static volatile uint8_t samplingRate = _16KHZ;
 static volatile uint8_t timerH = _16KHZ_HIGHBYTE;
 static volatile uint8_t timerL = _16KHZ_LOWBYTE;
 
+/*----- Variables for track management ---------------------------------------*/
+struct songInfo {
+	uint32_t address;
+	uint32_t nextAddress;
+	uint8_t samplingRate;
+};
+
 sfr sbit Mmc_Chip_Select at LATC2_bit;
 sfr sbit Mmc_Chip_Select_Direction at TRISC2_bit;
+
+
+/*--------- LCD Pin definitions ----------------------------------------------*/
+sbit LCD_RS at RB7_bit;
+sbit LCD_EN at RB6_bit;
+sbit LCD_D4 at RB5_bit;
+sbit LCD_D5 at RB4_bit;
+sbit LCD_D6 at RB3_bit;
+sbit LCD_D7 at RB2_bit;
+
+sbit LCD_RS_Direction at TRISB7_bit;
+sbit LCD_EN_Direction at TRISB6_bit;
+sbit LCD_D4_Direction at TRISB5_bit;
+sbit LCD_D5_Direction at TRISB4_bit;
+sbit LCD_D6_Direction at TRISB3_bit;
+sbit LCD_D7_Direction at TRISB2_bit;
 
 /**
 * FUNCTION DECLARATION
 */
-void mmcBuiltinInit(void);
+//void mmcBuiltinInit(void);
 void timer1Config(void);
+#ifdef USE_PWM
 void pwmConfig(void);
 void pwmStart(void);
 void pwmStop(void);
 void pwmChangeDutyCycle(uint8_t dutyCycle);
+#endif
 
+/*
+* This function add info for the next track
+* 8-bit samplingRate (prev track) + 32-bit new track address
+*/
+
+void trackNext(uint32_t address, uint8_t samplingRate);
+
+/*
+* This function returns free address location for a new unrecorded track
+*/
+uint32_t trackFree(void);
+
+/*
+* This function get info for a recorded song
+*/
+struct songInfo trackGet(uint8_t track);
+
+/*
+* This function return total tracks available on the card.
+* It first check for the security ID
+* If the security ID is not valid, it will clear the sector a rewrite a new
+* track management sector.
+*/
+uint8_t trackGetTotal(void);
 
 char* codeToRam(const char* ctxt)
 {
-	static char txt[20];
+	static char txt[15];
 	char i;
 	for(i =0; txt[i] = ctxt[i]; i++);
 
@@ -98,17 +144,22 @@ char* codeToRam(const char* ctxt)
 void main()
 {
 	unsigned char lastMode;
-	unsigned int mode = 0;
+	uint32_t sectorIndex;
 	uint8_t temp;
-	uint32_t trackFirstSector;
-	uint8_t totalTrack;
-	struct songInfo trackInfo;
+	uint8_t text[7];
+	uint32_t lastSector;
 	
-	/*---------------- Setup Port B weak pull-up ----------------------------- */
+	/*---------------- Initialize variables data ---------------------------- */
+	ptrIndex = 0;
+	currentBuffer = 0;
+	bufferFull = 0;
+	mode = 0;
+	adcResult = 0;
+	
+	/*---------------- Setup Port B weak pull-up ---------------------------- */
 	INTCON2 &= ~(1 << 7); // nRBPU = 0
 
 	ptr = &buffer0[0];
-	currentBuffer = 0;
 	adcInit();
 	Delay_ms(100);
 
@@ -116,71 +167,41 @@ void main()
 	/*---------------- Setup I/O ---------------------------------------------*/
 	TRISD = 0x00; 							// Output for DAC0808
 	TRISB = (1 << RB0) | (1 << RB1); 		// B0, B1 input; remains output
-	TRISC &= ~(1 << 2); 					// Output for CS pin
+	TRISC &= ~((1 << 2) | (1 << 6)); 					// Output for CS pin
 	
 	/*------------ Test code for DAC0808 -------------------------------------*/
 	LATD = 0x40;
 
 	/*------------ Welcome message -------------------------------------------*/
-#if _UART_GUI
-	UART1_Init(9600);
-	UWR(codeToRam(uart_welcome));
-#else
 	Lcd_Init();								// Init LCD for display
 	Lcd_Cmd(_LCD_CLEAR);
 	Lcd_Cmd(_LCD_CURSOR_OFF);
 	Lcd_Out(1, 2, codeToRam(lcd_welcome));
-#endif
 
-	mmcBuiltinInit();
+	//mmcBuiltinInit();
+	/*----------- MMC INIT ---------------------------------------------------*/
+	/* Init the SPI module with fOSC/64 */
+	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
+	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 	
-#ifdef DEBUG_PLAY
-	pwmConfig();
-	UWR(codeToRam(uart_debugRead));
-#endif
+	/* Init the MMC/SD */
+	while (MMC_Init() != 0)
+	{
+	}
+	
+	/* Boost the SPI clock speed to fOSC/4 */
+	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
+	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+	
+	
 	
 	INTCON |= (1 << GIE) | (1 << PEIE);		/* Global interrupt */
 
 	for (;;)        						/* Repeat forever */
 	{
-		while (SLCT != 0)
-		{
+		while (SLCT != 0){
 		}
-		
-#if _UART_GUI_
-/*------------------------ UART DEBUG mode -----------------------------------*/
-		UWR(codeToRam(uart_menu));
 
-		while (OK)	/* OK not pressed */
-		{
-			if (!SLCT)	/* SLCT */
-			{
-				Delay_ms(300);
-				mode++;
-				if (mode == 4)
-				{
-					mode = 1;
-				}
-			}
-
-			if ((mode == 1) & (lastMode != mode))
-			{
-				UWR(codeToRam(uart_record));
-			}
-			else if ((mode == 2) & (lastMode != mode))
-			{
-				UWR(codeToRam(uart_play));
-			}
-			else if ((mode == 3) & (lastMode != mode))
-			{
-				UWR(codeToRam(uart_sampleRate));
-			}
-			
-			lastMode = mode;					
-		}
-#endif
-
-#if !_UART_GUI
 /* ------------------- HD44780 LCD 16x2 display mode -------------------------*/
 	Lcd_Cmd(_LCD_CLEAR);               		// Clear display
 	
@@ -191,7 +212,7 @@ void main()
 			{
 				Delay_ms(300);
 				mode++;
-				if (mode == 5)
+				if (mode == 4)
 				{
 					mode = 1;
 				}
@@ -210,17 +231,11 @@ void main()
 			else if ((mode == 3) & (lastMode != mode))
 			{
 				lcdClear();
-				lcdDisplay(1, 2, codeToRam(lcd_totaltrack));
-			}
-			else if ((mode == 4) & (lastMode != mode))
-			{
-				lcdClear();
 				lcdDisplay(1, 2, codeToRam(lcd_sampleRate));
 			}
 			
 			lastMode = mode;					
 		}
-#endif		
 
 		/* Record mode */
 		if (mode == 1)
@@ -229,18 +244,15 @@ void main()
 			timer1Config();
 
 			/* Write routine */
-#if _UART_GUI			
-			UWR(codeToRam(uart_writing));
-#else
 			lcdClear();
 			lcdDisplay(1, 2, codeToRam(lcd_writing));
-#endif	
+			
 			/* Variables init */
 			ptr = buffer0;
 			ptrIndex = 0;
-			sectorIndex = trackFree();	/* Get address for new track */
-			trackFirstSector = sectorIndex;
+			sectorIndex = 0;
 			bufferFull = 0;
+			currentBuffer = 0;
 			
 			T1CON = (1 << TMR1ON);		/* Start hardware timer */
 			while (SLCT)				/* Wait until SLCT pressed */
@@ -250,136 +262,71 @@ void main()
 				bufferFull = 0;
 					if (currentBuffer)	/* Write buffer 0 */
 					{
-						if (Mmc_Write_Sector(sectorIndex++, buffer0) != 0)
-						{
-#if _UART_GUI			
-						UWR(codeToRam(uart_errorWrite));
-#endif
+						if (Mmc_Write_Sector(sectorIndex++, buffer0) != 0) {
+						lcdClear();
+						lcdDisplay(2, 2, "E");
 						}
 					}
 					else				/* Write buffer 1 */
 					{
-						if (Mmc_Write_Sector(sectorIndex++, buffer1) != 0)
-						{
-#if _UART_GUI						
-							UWR(codeToRam(uart_errorWrite));
-#endif
+						if (Mmc_Write_Sector(sectorIndex++, buffer1) != 0) {
+						lcdClear();
+						lcdDisplay(2,2, "E");
 						}
 					}
 				}
 			}
 			T1CON &= ~(1 << TMR1ON);
 			
-			trackNext(sectorIndex, samplingRate); /* Write the track info */
-			
-			Delay_ms(500);
-			
-			
+			Delay_ms(100);
+	
 			/* Write complete message */
-			intToStr((sectorIndex - trackFirstSector), text);	/* Calculate track length */
-#if _UART_GUI
-			UWR(codeToRam(uart_done));
-			UWR(text);
-#else
-			lcdClear();
-			lcdDisplay(1, 2, codeToRam(lcd_done));
-			lcdDisplay(2, 2, text);
-#endif
+			// intToStr(sectorIndex, text);	/* Calculate track length */
+			// lcdClear();
+			// lcdDisplay(2, 2, text);
 		}
 
 		/* Play mode */
 		else if (mode == 2) 
-		{
-			totalTrack = trackGetTotal(); /* Get total track for menu display */
-			
-			if (totalTrack == 0) { /* No tracks avaialbe */
-				lcdClear();
-				lcdDisplay(1, 2, codeToRam(lcd_t_notrack));
-			}
-			else { /* Select the track */
-#if !_UART_GUI
-				temp = mode;
-				lcdClear();
-				
-				/* Menu loop */
-				while (OK) { /* OK not pressed */
-					if (!SLCT) { /* SLCT */
-						Delay_ms(300);
-						mode++;
-						if (mode == (totalTrack+1)) {
-							mode = 1;
-						}
-					}
-					
-					/* Display track on the screen */
-					if (lastMode != mode) {
-						intToStr(mode, text);
-						lcdClear();
-						lcdDisplay(1, 2, text);
-					}
-					
-					lastMode = mode;					
-				}
-#endif
-			}
-			
-			/* Get the track information to play */
-			trackInfo = trackGet(mode);
-			mode = temp;	/* Return saved state to mode !important! */
-			samplingRate = trackInfo.samplingRate; /* Change sampling rate */
+		{	
+			lastSector = sectorIndex;
+			sectorIndex = 0;
 			
 			/* Config the timer for hardware timing */
 			timer1Config();
 			
 			/* Read routine */
-#if _UART_GUI			
-			UWR(codeToRam(uart_reading));
-#else
 			lcdClear();
 			lcdDisplay(1, 2, codeToRam(lcd_playing));
-#endif
 			ptr = buffer0;
 			ptrIndex = 0;
-			sectorIndex = trackInfo.address;
 			bufferFull = 0;
 			currentBuffer = 0;
 			
 			/* Read the first sector to the buffer */
-			if (Mmc_Read_Sector(sectorIndex, buffer0) != 0)
-			{
-#if _UART_GUI
-				UWR(codeToRam(uart_initReadError));	/* First buffer error */
-#endif
+			if (Mmc_Read_Sector(sectorIndex, buffer0) != 0)	{
 			}
 			
 			/* Start the timer1 */
 			T1CON |= (1 << TMR1ON);
-#ifdef DEBUG_PLAY
-			/* Start the PWM module */
-			pwmStart();
-#endif
+			
 			/* Reading loop */
-			while (sectorIndex < trackInfo.nextAddress)				/* Wait until SLCT pressed */
+			while (SLCT)
 			{
-				if (bufferFull == 1)
-				{
+				if (bufferFull == 1) {
 				bufferFull = 0;
-					if (currentBuffer)	/* Read buffer 0 */
-					{
-						if (Mmc_Read_Sector(sectorIndex++, buffer0) != 0)
-						{
-#if _UART_GUI						
-							UWR(codeToRam(uart_errorRead));
-#endif						
+					if (currentBuffer) { /* Read buffer 0 */
+					
+						if (Mmc_Read_Sector(sectorIndex++, buffer0) != 0) {
+						lcdClear();
+						lcdDisplay(2,2, "E");						
 						}
 					}
-					else				/* Write buffer 1 */
-					{
-						if (Mmc_Read_Sector(sectorIndex++, buffer1) != 0)
-						{
-#if _UART_GUI						
-							UWR(codeToRam(uart_errorRead));
-#endif
+					else { /* Write buffer 1 */
+					
+						if (Mmc_Read_Sector(sectorIndex++, buffer1) != 0) {
+						lcdClear();
+						lcdDisplay(2,2, "E");
 						}
 					}
 				}
@@ -387,25 +334,17 @@ void main()
 			
 			/* Stop the timer1 */
 			T1CON &= ~(1 << TMR1ON);
-#ifdef DEBUG_PLAY
-			/* Stop the PWM module */
-			pwmStop();
-#endif
-			Delay_ms(500);
-#if _UART_GUI			
-			UWR(codeToRam(uart_done));
-#else
-			lcdClear();
-			lcdDisplay(1, 2, codeToRam(lcd_done));
-#endif
+			
+			Delay_ms(100);
+			//lcdClear();
+			//lcdDisplay(1, 2, codeToRam(lcd_done));
 		}
 		
 		/* Change sampling rate */
 		else if (mode == 3)	{
 			temp = mode; /* Save current mode state */
 			mode = 1;
-
-#if !_UART_GUI
+			Delay_ms(500);
 			Lcd_Cmd(_LCD_CLEAR);               		
 			/* Menu loop */
 			while (OK) { /* OK not pressed */
@@ -440,13 +379,14 @@ void main()
 			lcdDisplay(1, 2, codeToRam(lcd_saved));
 			
 			mode = temp;
-#endif	
 		}
-		
+	
 		mode == 1;
 	}
+
 }
 
+#ifdef REMOVE
 void mmcBuiltinInit(void)
 {
 	/* Init the SPI module with fOSC/64 */
@@ -462,11 +402,11 @@ void mmcBuiltinInit(void)
 	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
 	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 }
+#endif
 
 void interrupt()
 {
-	if (PIR1.TMR1IF == 1)
-	{
+	if (PIR1.TMR1IF == 1) {
 		/* Clear the interrupt flag */
 		PIR1.TMR1IF = 0;
 		
@@ -476,34 +416,26 @@ void interrupt()
 		TMR1H = timerH;
 		TMR1L = timerL;
 		
-		if (mode == 1)					/* Record mode */
-		{
+		if (mode == 1) { /* Record mode */
 			/* Trigger the A/D conversion */
 			GO_bit = 1;
+			LATC |= (1 << 6);
+			Delay_us(1);
+			LATC &= ~(1 << 6);
 		}
-		
-		else if (mode == 2)				/* Play mode */
-		{
-#ifdef DEBUG_PLAY
-			/* Change the PWM duty cycle */
-			CCPR2L = *(ptr + (ptrIndex++));
-#else
+		else {	/* Play mode */
 			/* Send data to the DAC */
 			LATD = *(ptr + (ptrIndex++));
-#endif
-			
+		
 			/* Swap the buffer */
-			if (ptrIndex == 512)					
-			{
+			if (ptrIndex == 512) {
 				ptrIndex = 0;
 				bufferFull = 1;
-				if (currentBuffer == 0)
-				{
+				if (currentBuffer == 0)	{
 					ptr = buffer1;
 					currentBuffer = 1;
 				}
-				else
-				{
+				else {
 					ptr = buffer0;
 					currentBuffer = 0;
 				}
@@ -511,8 +443,7 @@ void interrupt()
 		}
 	}
 
-	if (PIR1 & (1 << ADIF)) 
-	{
+	if (PIR1 & (1 << ADIF)) {
 		/* Clear the interrupt flag */
 		PIR1 &= ~(1 << ADIF);
 		
@@ -540,6 +471,7 @@ void interrupt()
 	}
 }
 
+
 /**
 * Config timer1 for sampling interrupt
 */
@@ -560,6 +492,7 @@ void timer1Config(void)
 	TMR1L = timerL;
 }
 
+#ifdef USE_PWM
 /**
 * Setup PWM module for debug output using CCP2 module
 * CCP2 output is RB3, need to be configured via configuration bits
@@ -595,3 +528,133 @@ void pwmChangeDutyCycle(uint8_t dutyCycle)
 {
 	CCPR2L = dutyCycle;
 }
+#endif
+
+/*
+* This function add info for the next track
+* 8-bit samplingRate (prev track) + 32-bit new track address
+*/
+
+// void trackNext(uint32_t address, uint8_t samplingRate) 
+// {
+	// uint8_t i = 0;
+	
+	// /* Get free byte location to write new track info */
+	// i = 4 + totalTrack * 3;
+	
+	// /* Write a new track info */
+	// buffer0[i+1] = (uint8_t) samplingRate;
+	// buffer0[i+2] = (uint8_t) address;		/* LSB */
+	// buffer0[i+3] = (uint8_t) address >> 8;
+	
+	// /* Increase total Track by 1 */
+	// totalTrack++;
+	// buffer0[4] = totalTrack;
+	
+	// /* Write new sector to info sector */
+	// Mmc_Write_Sector(INFO_SECTOR, buffer0);
+// }
+
+// /*
+// * This function returns free address location for a new unrecorded track
+// */
+// uint32_t trackFree(void)
+// {
+	// uint8_t i;
+	// uint32_t address;
+	
+	// address = (uint32_t) FIRST_DATA_SECTOR;
+	
+	// if (totalTrack != 0) {
+		// i = 4 + totalTrack * 5;
+		
+		// address = (uint32_t) (buffer0[i] << 24) + \
+					// (uint32_t) (buffer0[i-1] << 16) + \
+					// (uint32_t) (buffer0[i-2] << 8) + \
+					// (uint32_t) (buffer0[i-3]);
+	// }
+						
+	// return address;
+// }
+
+// /*
+// * This function get info for a recorded song
+// */
+// struct songInfo trackGet(uint8_t track)
+// {
+	// struct songInfo song;
+	// uint8_t i = 0;
+	
+	// /* Read the info sector of the card */
+	// while (Mmc_Read_Sector(INFO_SECTOR, buffer0) != 0);
+	
+	// /* Calculate the track location in buffer sector */
+	// i = 4 + track * 5;
+	
+	// if (track != 1)
+	// {
+		// /* Return the track information */
+		// song.address = (uint32_t) (buffer0[i-8] + \
+						// buffer0[i-7] << 8 + \
+						// buffer0[i-6] << 16 + \
+						// buffer0[i-5] << 24);
+		// song.samplingRate = buffer0[i-4];
+		// song.nextAddress = (uint32_t) (buffer0[i-3] + \
+						// buffer0[i-2] << 8 + \
+						// buffer0[i-1] << 15 + \
+						// buffer0[i] << 24);
+	// }
+	// else
+	// {
+		// /* Return track 1 info */
+		// song.address = 0;
+		// song.samplingRate = buffer0[5];
+		// song.nextAddress = (uint32_t) (buffer0[6] + \
+							// buffer0[7] << 8 + \
+							// buffer0[8] << 16 + \
+							// buffer0[9] << 24);
+	// }
+	
+	// return song;
+// }
+
+
+/*
+* This function return total tracks available on the card.
+* It first check for the security ID
+* If the security ID is not valid, it will clear the sector a rewrite a new
+* track management sector.
+*/
+// uint8_t trackGetTotal(void)
+// {
+	// uint8_t i;
+	// uint8_t totalTrack;
+	
+	// totalTrack = 0;
+	
+	// /* Read the info sector of the card */
+	// while (Mmc_Read_Sector(INFO_SECTOR, buffer0) != 0);
+	
+	// /* IDs check */
+	// if ((buffer0[0] == ID0) || (buffer0[1] == ID1) ||\
+	// (buffer0[2] == ID2) || (buffer0[3] == ID3)) {
+		// /* Sector not contain true ids, wipe out */
+		// for (i = 0; i < 512; i++) {
+			// buffer0[i] = 0;
+		// }
+		// buffer0[0] = ID0;
+		// buffer0[1] = ID1;
+		// buffer0[2] = ID2;
+		// buffer0[3] = ID3;
+		
+		// /* Rewrite the information sector */
+		// while (Mmc_Write_Sector(INFO_SECTOR, buffer0) != 0);
+	// }
+	// else {
+		// /* Sector contain valid information */
+		// /*-- Read number of tracks */
+		// totalTrack = buffer0[4];
+	// }
+	
+	// return totalTrack;
+// }

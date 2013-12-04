@@ -27,7 +27,7 @@ void trackNext(uint32_t address, uint8_t samplingRate)
 	buffer0[4] = totalTrack;
 	
 	/* Write new sector to info sector */
-	mmcWrite(INFO_SECTOR, buffer0);
+	Mmc_Write_Sector(INFO_SECTOR, buffer0);
 }
 
 /*
@@ -63,7 +63,7 @@ struct songInfo trackGet(uint8_t track)
 	uint8_t i = 0;
 	
 	/* Read the info sector of the card */
-	while (mmcRead(INFO_SECTOR, buffer0) != 0);
+	while (Mmc_Read_Sector(INFO_SECTOR, buffer0) != 0);
 	
 	/* Calculate the track location in buffer sector */
 	i = 4 + track * 5;
@@ -108,7 +108,7 @@ uint8_t trackGetTotal(void)
 	uint8_t totalTrack = 0;
 	
 	/* Read the info sector of the card */
-	while (mmcRead(INFO_SECTOR, buffer0) != 0);
+	while (Mmc_Read_Sector(INFO_SECTOR, buffer0) != 0);
 	
 	/* IDs check */
 	if (buffer0[0] != ID0) {
@@ -128,7 +128,7 @@ uint8_t trackGetTotal(void)
 		buffer0[3] = ID3;
 		
 		/* Rewrite the information sector */
-		while (mmcWrite(INFO_SECTOR, buffer0) != 0);
+		while (Mmc_Write_Sector(INFO_SECTOR, buffer0) != 0);
 	}
 	else {
 		/* Sector contain valid information */

@@ -1,30 +1,39 @@
 main
 	__CC2DW
 	adcInit
-	UART1_Init
+	Lcd_Init
+		Delay_5500us
+		Delay_1us
+	Lcd_Cmd
+		Delay_1us
+		Delay_5500us
+		Delay_50us
 	codeToRam
-	UART_Write_Text
-		UART_Write
+	Lcd_Out
+		Lcd_Cmd
+			Delay_1us
+			Delay_5500us
+			Delay_50us
+		Lcd_Chr_CP
+			Lcd_Cmd
+				Delay_1us
+				Delay_5500us
+				Delay_50us
+	SPI1_Init_Advanced
+	Mmc_Init
+		Mmc_DeSelect
 			____DoIFC
-	UART_Write
 		____DoIFC
-	mmcBuiltinInit
-		SPI1_Init_Advanced
-		Mmc_Init
-			Mmc_DeSelect
-				____DoIFC
+		Mmc_Select
+		Mmc_Send_Command
 			____DoIFC
+		Mmc_UnIdle
 			Mmc_Select
 			Mmc_Send_Command
 				____DoIFC
-			Mmc_UnIdle
-				Mmc_Select
-				Mmc_Send_Command
-					____DoIFC
-				Mmc_DeSelect
-					____DoIFC
+			Mmc_DeSelect
 				____DoIFC
-	specialEventTriggerSetup
+			____DoIFC
 	timer1Config
 	Mmc_Write_Sector
 		Mmc_Select
@@ -33,9 +42,6 @@ main
 		Mmc_DeSelect
 			____DoIFC
 		____DoIFC
-	IntToStr
-		WordToStr
-			Div_16x16_U
 	Mmc_Read_Sector
 		Mmc_Select
 		Mmc_Send_Command

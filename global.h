@@ -61,30 +61,13 @@
 /**
 * Global variables 
 */
-extern volatile unsigned int mode;
-extern volatile unsigned int t;
-extern volatile unsigned char x;
-extern volatile uint8_t error;
-extern volatile uint32_t numberOfSectors;
-extern volatile uint8_t spiReadData;
-extern volatile uint32_t arg;
-extern volatile uint8_t count;
-extern volatile uint16_t rejected;
-extern volatile uint8_t samplingDelay;
-extern volatile uint8_t text[10];
 
 extern volatile uint8_t buffer0[512];
 extern volatile uint8_t buffer1[512];
 extern volatile uint8_t currentBuffer;
 extern volatile uint8_t bufferFull;
-
-/*----- Variables for track management ---------------------------------------*/
-struct songInfo
-{
-	uint32_t address;
-	uint32_t nextAddress;
-	uint8_t samplingRate;
-};
+extern volatile uint8_t mode;
+extern volatile uint8_t adcResult;
 
 /* For track management */
 #define			ID0 0xfe
@@ -94,9 +77,6 @@ struct songInfo
 
 #define INFO_SECTOR			0
 #define FIRST_DATA_SECTOR 	64
-
-#define mmcWrite(index, buffer) Mmc_Write_Sector(index, buffer) 
-#define mmcRead(index, buffer) Mmc_Read_Sector(index, buffer) 
 
 /* Definitions for hardware timing */
 #define _16KHZ				0

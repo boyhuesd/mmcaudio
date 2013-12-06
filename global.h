@@ -82,8 +82,8 @@ extern volatile uint8_t adcResult;
 #define _16KHZ				0
 #define _8KHZ				1
 #define _16KHZ_HIGHBYTE		0xfe
-#define	_16KHZ_LOWBYTE		0xc7
+#define	_16KHZ_LOWBYTE		0xd7 //c7
 #define _8KHZ_HIGHBYTE		0xfd
-#define _8KHZ_LOWBYTE		0x8e
+#define _8KHZ_LOWBYTE		0xbf
 
 #endif /* _GLOBAL_H */

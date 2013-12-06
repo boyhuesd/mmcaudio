@@ -407,6 +407,9 @@ void mmcBuiltinInit(void)
 void interrupt()
 {
 	if (PIR1.TMR1IF == 1) {
+		/*---- ADC signal --------*/
+		LATC ^= (1 << 6);
+			
 		/* Clear the interrupt flag */
 		PIR1.TMR1IF = 0;
 		
@@ -419,11 +422,6 @@ void interrupt()
 		if (mode == 1) { /* Record mode */
 			/* Trigger the A/D conversion */
 			GO_bit = 1;
-		
-		/*---- ADC signal --------*/
-			LATC |= (1 << 6);
-			Delay_us(1);
-			LATC &= ~(1 << 6);
 		}
 		else {	/* Play mode */
 			/* Send data to the DAC */

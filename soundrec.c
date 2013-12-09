@@ -24,24 +24,6 @@ git branch -d <branch_name>
 git push origin branch
 */
 
-/*
-* TODO::
-* 1. Luu du lieu thanh tung track, track list (dung EEPROM)
-* 2. Lua chon tan so lay mau
-* 3. Data reject handling
-* 4. Noise supression
-* 5. Check if the card address argument is byte-address or block-address?!!!
-* >>> block for SDC v2, byte otherwise
-* 6. !Write track metadata to MMC/SD, not EEPROM!
-* 7. Rewrite MMC/SD Init fucntion to support more card
-* 8. Add feature to keep or discard a track when recorded successful.
-* 9. Write an UI that ask for which track to play.
-* >>> Done, debug it!
-* 10. Create a header files that contain information string constant
-* 11. Write handle when play the whole card in readMultipleBlock()
-* 12. Display sampling period on oscilloscope.
-*/
-
 #include <stdint.h>
 #include "string.h"
 #include "soundrec.h"
@@ -62,7 +44,7 @@ volatile uint8_t currentBuffer;
 volatile uint8_t bufferFull;
 volatile uint8_t mode;
 volatile uint8_t adcResult;
-volatile uint8_t totalTrack;
+//volatile uint8_t totalTrack;
 
 /*---- Variables for hardware timing -----------------------------------------*/
 static volatile uint8_t samplingRate = _16KHZ;
@@ -107,6 +89,7 @@ void pwmStop(void);
 void pwmChangeDutyCycle(uint8_t dutyCycle);
 #endif
 
+
 /*
 * This function add info for the next track
 * 8-bit samplingRate (prev track) + 32-bit new track address
@@ -117,7 +100,7 @@ void trackNext(uint32_t address, uint8_t samplingRate);
 /*
 * This function returns free address location for a new unrecorded track
 */
-uint32_t trackFree(void);
+uint32_t trackFree(uint8_t totalTrack);
 
 /*
 * This function get info for a recorded song
@@ -145,13 +128,14 @@ void main()
 {
 	unsigned char lastMode;
 	uint32_t sectorIndex;
-	uint8_t temp;
-	uint8_t text[7];
 	uint32_t lastSector;
+	uint8_t temp, stop;
+	uint8_t text[7];
+	uint16_t i;
 	
 	/*---------------- Initialize variables data ---------------------------- */
-	ptrIndex = 0;
-	currentBuffer = 0;
+	//ptrIndex = 0;
+	//currentBuffer = 0;
 	bufferFull = 0;
 	mode = 0;
 	adcResult = 0;
@@ -176,32 +160,30 @@ void main()
 	Lcd_Init();								// Init LCD for display
 	Lcd_Cmd(_LCD_CLEAR);
 	Lcd_Cmd(_LCD_CURSOR_OFF);
-	Lcd_Out(1, 2, codeToRam(lcd_welcome));
+	Lcd_Out(1, 2, (lcd_welcome));
 
-	//mmcBuiltinInit();
 	/*----------- MMC INIT ---------------------------------------------------*/
 	/* Init the SPI module with fOSC/64 */
 	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV64, _SPI_DATA_SAMPLE_MIDDLE,\
 	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 	
 	/* Init the MMC/SD */
-	while (MMC_Init() != 0)
-	{
+	while (MMC_Init() != 0)	{
 	}
 	
 	/* Boost the SPI clock speed to fOSC/4 */
 	SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE,\
 	_SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
 	
-	
-	
-	INTCON |= (1 << GIE) | (1 << PEIE);		/* Global interrupt */
+		INTCON |= (1 << GIE) | (1 << PEIE);		/* Global interrupt */
 
-	for (;;)        						/* Repeat forever */
+	for (;;) /* Repeat forever */
 	{
 		while (SLCT != 0){
 		}
-
+	
+	mode = 0;
+	lastmode = 0;
 /* ------------------- HD44780 LCD 16x2 display mode -------------------------*/
 	Lcd_Cmd(_LCD_CLEAR);               		// Clear display
 	
@@ -221,17 +203,17 @@ void main()
 			if ((mode == 1) & (lastMode != mode))
 			{
 				lcdClear();
-				lcdDisplay(1, 2, codeToRam(lcd_record));
+				lcdDisplay(1, 2, (lcd_record));
 			}
 			else if ((mode == 2) & (lastMode != mode))
 			{
 				lcdClear();
-				lcdDisplay(1, 2, codeToRam(lcd_play));
+				lcdDisplay(1, 2, (lcd_play));
 			}
 			else if ((mode == 3) & (lastMode != mode))
 			{
 				lcdClear();
-				lcdDisplay(1, 2, codeToRam(lcd_sampleRate));
+				lcdDisplay(1, 2, (lcd_sampleRate));
 			}
 			
 			lastMode = mode;					
@@ -245,7 +227,7 @@ void main()
 
 			/* Write routine */
 			lcdClear();
-			lcdDisplay(1, 2, codeToRam(lcd_writing));
+			lcdDisplay(1, 2, (lcd_writing));
 			
 			/* Variables init */
 			ptr = buffer0;
@@ -278,17 +260,27 @@ void main()
 			}
 			T1CON &= ~(1 << TMR1ON);
 			
+			/* Write stop sector */
+			for (i = 0; i < 512; i++) {
+				buffer0[i] = 0x00; /* Stop byte */
+			};
+			if (Mmc_Write_Sector(sectorIndex++, buffer0) != 0) {
+				// lcdClear();
+				// lcdDisplay(2,2, "SE"); /* Stop byte write error */
+			}
+			
 			Delay_ms(100);
 	
 			/* Write complete message */
 			// intToStr(sectorIndex, text);	/* Calculate track length */
 			// lcdClear();
-			// lcdDisplay(2, 2, text);
+			// lcdDisplay(2, 2, lcd_done);
 		}
 
 		/* Play mode */
 		else if (mode == 2) 
 		{	
+			stop = 0;
 			lastSector = sectorIndex;
 			sectorIndex = 0;
 			
@@ -297,47 +289,58 @@ void main()
 			
 			/* Read routine */
 			lcdClear();
-			lcdDisplay(1, 2, codeToRam(lcd_playing));
+			lcdDisplay(1, 2, (lcd_playing));
 			ptr = buffer0;
 			ptrIndex = 0;
 			bufferFull = 0;
 			currentBuffer = 0;
 			
+			buffer0[0] = 1;
 			/* Read the first sector to the buffer */
-			if (Mmc_Read_Sector(sectorIndex, buffer0) != 0)	{
+			while (Mmc_Read_Sector(sectorIndex, buffer0) != 0)	{
 			}
 			
 			/* Start the timer1 */
 			T1CON |= (1 << TMR1ON);
 			
 			/* Reading loop */
-			while (SLCT)
-			{
+			while ((!stop) && SLCT)
+			{	
+				stop = 1;
+				for (i = 0; i < 512; i++) {
+					if (*(ptr+i)) {
+						stop = 0;
+					}
+				}
 				if (bufferFull == 1) {
 				bufferFull = 0;
 					if (currentBuffer) { /* Read buffer 0 */
-					
 						if (Mmc_Read_Sector(sectorIndex++, buffer0) != 0) {
 						lcdClear();
 						lcdDisplay(2,2, "E");						
 						}
 					}
 					else { /* Write buffer 1 */
-					
 						if (Mmc_Read_Sector(sectorIndex++, buffer1) != 0) {
 						lcdClear();
 						lcdDisplay(2,2, "E");
 						}
 					}
 				}
+				
+				// if (*ptr == 0x00) {
+					// stop = 1;
+				// } else stop = 0;
+
 			}
 			
+			stop = 0;
 			/* Stop the timer1 */
 			T1CON &= ~(1 << TMR1ON);
 			
 			Delay_ms(100);
-			//lcdClear();
-			//lcdDisplay(1, 2, codeToRam(lcd_done));
+			lcdClear();
+			lcdDisplay(1, 2, (lcd_done));
 		}
 		
 		/* Change sampling rate */
@@ -358,11 +361,11 @@ void main()
 
 				if ((mode == 1) & (lastMode != mode)) {
 					lcdClear();
-					lcdDisplay(1, 2, codeToRam(lcd_s_16khz));
+					lcdDisplay(1, 2, (lcd_s_16khz));
 				}
 				else if ((mode == 2) & (lastMode != mode)) {
 					lcdClear();
-					lcdDisplay(1, 2, codeToRam(lcd_s_8khz));
+					lcdDisplay(1, 2, (lcd_s_8khz));
 				}
 				
 				lastMode = mode;					
@@ -376,12 +379,10 @@ void main()
 			}
 			
 			lcdClear();
-			lcdDisplay(1, 2, codeToRam(lcd_saved));
+			lcdDisplay(1, 2, (lcd_saved));
 			
 			mode = temp;
 		}
-	
-		mode == 1;
 	}
 
 }
@@ -555,10 +556,10 @@ void pwmChangeDutyCycle(uint8_t dutyCycle)
 	// Mmc_Write_Sector(INFO_SECTOR, buffer0);
 // }
 
-// /*
-// * This function returns free address location for a new unrecorded track
-// */
-// uint32_t trackFree(void)
+/*
+* This function returns free address location for a new unrecorded track
+*/
+// uint32_t trackFree(uint8_t totalTrack)
 // {
 	// uint8_t i;
 	// uint32_t address;
@@ -634,9 +635,10 @@ void pwmChangeDutyCycle(uint8_t dutyCycle)
 	
 	// /* Read the info sector of the card */
 	// while (Mmc_Read_Sector(INFO_SECTOR, buffer0) != 0);
+	// Mmc_Read_Sector(INFO_SECTOR, buffer0);
 	
 	// /* IDs check */
-	// if ((buffer0[0] == ID0) || (buffer0[1] == ID1) ||\
+	// if ((buffer0[0] == ID0) || (buffer0[1] == ID1) ||
 	// (buffer0[2] == ID2) || (buffer0[3] == ID3)) {
 		// /* Sector not contain true ids, wipe out */
 		// for (i = 0; i < 512; i++) {
